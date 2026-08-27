@@ -42,7 +42,7 @@ struct HermesKeychainMenuApp: App {
         let renderer = ImageRenderer(
             content: DiagnosticSnapshotView()
                 .environmentObject(model)
-                .frame(width: 1040, height: 700)
+                .frame(width: 1240, height: 760)
         )
         renderer.scale = 1.5
         guard let image = renderer.nsImage,

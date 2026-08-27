@@ -36,6 +36,55 @@ final class AppModel: ObservableObject {
     @Published var chthoniosSummary = "Checking…"
     @Published var chthoniosAvailable = false
 
+    // MARK: Derived state
+    //
+    // Every number the dashboard shows is computed from real CLI status output.
+    // Nothing here is decorative: an empty vault reports zero rather than a
+    // flattering placeholder.
+
+    var plainCount: Int { status.secrets.filter { $0.mode == "plain" }.count }
+    var enclaveCount: Int { status.secrets.filter { $0.mode == "enclave" }.count }
+    var readableCount: Int { status.secrets.filter(\.isUnlocked).count }
+    var readableEnclaveCount: Int { status.secrets.filter { $0.mode == "enclave" && $0.isUnlocked }.count }
+
+    var profileName: String {
+        let name = (hermesHome as NSString).lastPathComponent
+        return name.isEmpty ? "default" : name
+    }
+
+    /// Fraction of stored secrets currently readable. An empty vault is shown as
+    /// full rather than zero, because "nothing stored" is not a failure state.
+    var healthFraction: Double {
+        guard status.sourceEnabled else { return 0 }
+        guard !status.secrets.isEmpty else { return 1 }
+        return Double(readableCount) / Double(status.secrets.count)
+    }
+
+    var healthLabel: String {
+        guard status.sourceEnabled else { return "off" }
+        return "\(Int((healthFraction * 100).rounded()))%"
+    }
+
+    var healthCaption: String {
+        if !status.sourceEnabled { return "The secret source is disabled in this profile." }
+        if status.secrets.isEmpty { return "No secrets stored yet." }
+        if readableCount == status.secrets.count { return "All \(status.secrets.count) secrets are readable." }
+        return "\(status.secrets.count - readableCount) of \(status.secrets.count) locked. Unlock to restore access."
+    }
+
+    var statusHeadline: String {
+        if !status.sourceEnabled { return "The Keychain source is not active for this profile." }
+        if status.secrets.isEmpty { return "The source is connected. No secrets are stored yet." }
+        return "Serving \(status.secrets.count) secret\(status.secrets.count == 1 ? "" : "s") from the Keychain."
+    }
+
+    var lastUpdatedCaption: String {
+        guard let lastUpdated else { return "Not checked yet" }
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .short
+        return "Verified " + formatter.localizedString(for: lastUpdated, relativeTo: Date())
+    }
+
     var iconName: String {
         guard status.sourceEnabled else { return "lock.slash" }
         if status.secrets.contains(where: { $0.mode == "enclave" && !$0.isUnlocked }) { return "lock.fill" }
