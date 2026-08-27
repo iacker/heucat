@@ -32,6 +32,7 @@ final class AppModel: ObservableObject {
     @Published var lastUpdated: Date?
     @Published var selectedSection: AppSection? = .overview
     @Published var showingAddSecret = false
+    @Published var prefillName = ""   // set when opening Add to update an existing secret's value
     @Published var pendingDeletion: SecretStatus?
     @Published var chthoniosSummary = "Checking…"
     @Published var chthoniosAvailable = false
@@ -163,7 +164,7 @@ final class AppModel: ObservableObject {
     }
 
     func openRepository() {
-        NSWorkspace.shared.open(URL(string: "https://github.com/iacker/hermes-keychain-secretsource")!)
+        NSWorkspace.shared.open(URL(string: "https://github.com/iacker/heucat")!)
     }
 
     func openKeychainFolder() {

@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct MainWindowView: View {
@@ -760,6 +761,16 @@ struct SecretRow: View {
 
                 if showActions {
                     Menu {
+                        Button("Copy variable name", systemImage: "doc.on.doc") {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(secret.name, forType: .string)
+                            model.message = "Copied \(secret.name)"
+                        }
+                        Button("Update value…", systemImage: "arrow.triangle.2.circlepath") {
+                            model.prefillName = secret.name
+                            model.showingAddSecret = true
+                        }
+                        Divider()
                         Button("Remove", systemImage: "trash", role: .destructive) {
                             model.pendingDeletion = secret
                         }

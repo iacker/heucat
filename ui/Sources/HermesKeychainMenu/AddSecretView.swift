@@ -12,6 +12,8 @@ struct AddSecretView: View {
     @State private var account = ""
     @State private var error = ""
 
+    private var isUpdate: Bool { !model.prefillName.isEmpty }
+
     enum Protection: String, CaseIterable, Identifiable {
         case enclave = "Secure Enclave"
         case keychain = "Apple Keychain"
@@ -29,8 +31,10 @@ struct AddSecretView: View {
             HStack(spacing: 12) {
                 ZStack { RoundedRectangle(cornerRadius: 12).fill(Color.accentColor.gradient); Image(systemName: "key.fill").foregroundStyle(.white).font(.title2) }.frame(width: 48, height: 48)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Add a secret").font(.title2.weight(.semibold))
-                    Text("The value is sent directly to protected storage and never displayed again.").font(.callout).foregroundStyle(.secondary)
+                    Text(isUpdate ? "Update a secret" : "Add a secret").font(.title2.weight(.semibold))
+                    Text(isUpdate
+                         ? "Enter a new value for \(model.prefillName). The old value is overwritten."
+                         : "The value is sent directly to protected storage and never displayed again.").font(.callout).foregroundStyle(.secondary)
                 }
                 Spacer()
             }.padding(24)
@@ -39,6 +43,7 @@ struct AddSecretView: View {
                 Section("Identity") {
                     TextField("Environment variable", text: $name, prompt: Text("OPENROUTER_API_KEY"))
                         .textContentType(.none).font(.system(.body, design: .monospaced))
+                        .disabled(isUpdate)
                     if !name.isEmpty && !validName { Text("Use letters, numbers and underscores; start with a letter or underscore.").font(.caption).foregroundStyle(.red) }
                 }
                 Section("Protection") {
@@ -70,9 +75,10 @@ struct AddSecretView: View {
                     .font(.caption).foregroundStyle(.secondary)
                 Spacer()
                 Button("Cancel") { clearAndDismiss() }.keyboardShortcut(.cancelAction)
-                Button("Save securely") { save() }.buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction).disabled(!canSave)
+                Button(isUpdate ? "Update value" : "Save securely") { save() }.buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction).disabled(!canSave)
             }.padding(18)
         }.frame(width: 560, height: 650)
+        .onAppear { if isUpdate { name = model.prefillName } }
     }
 
     private func save() {
@@ -81,11 +87,11 @@ struct AddSecretView: View {
         confirmation = ""
         Task {
             let ok = await model.store(name: name, value: secretValue, enclave: protection == .enclave, service: service, account: account)
-            if ok { dismiss() } else { error = model.message }
+            if ok { model.prefillName = ""; dismiss() } else { error = model.message }
         }
     }
 
     private func clearAndDismiss() {
-        value = ""; confirmation = ""; dismiss()
+        value = ""; confirmation = ""; model.prefillName = ""; dismiss()
     }
 }
