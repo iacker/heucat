@@ -2,3 +2,5 @@ __pycache__/
 *.pyc
 helper/hermes-keychain-helper
 .pytest_cache/
+ui/.build/
+ui/dist/

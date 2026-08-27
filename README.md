@@ -43,6 +43,23 @@ plugins:
 The Secure Enclave helper builds itself on first `store --enclave`
 (needs Xcode Command Line Tools: `xcode-select --install`).
 
+## Native menu bar app
+
+The optional SwiftUI app in [`ui/`](ui/) shows source and per-secret state,
+and runs unlock or lock without opening a terminal. It delegates security
+operations to the same plugin CLI and never puts secret values in process
+arguments.
+
+```bash
+cd ui
+./scripts/test.sh
+./scripts/build-app.sh
+open "dist/Hermes Keychain.app"
+```
+
+The local build is ad-hoc signed. Public binary distribution requires a
+Developer ID signature and Apple notarization.
+
 ## Quick start
 
 ```bash
