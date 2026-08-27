@@ -18,6 +18,7 @@ struct MainWindowView: View {
                     case .secrets: SecretsView()
                     case .sessions: SessionsView()
                     case .profiles: SealedProfilesView()
+                    case .howitworks: HowItWorksView()
                     case .diagnostics: DiagnosticsView()
                     }
                 }
@@ -721,12 +722,89 @@ struct DiagnosticsView: View {
     }
 }
 
+// MARK: - How it works
+
+struct HowItWorksView: View {
+    private struct Stage: Identifiable {
+        let id = UUID()
+        let icon: String
+        let title: String
+        let body: String
+    }
+
+    private let stages: [Stage] = [
+        Stage(icon: "cpu",
+              title: "A key is born inside the Enclave",
+              body: "The first time you store an Enclave secret, a P256 private key is generated inside the Secure Enclave, the isolated chip on Apple Silicon. That key can never be exported. Not by you, not by malware, not by macOS. Only its public half comes out."),
+        Stage(icon: "lock.doc",
+              title: "Your secret is sealed with ChaChaPoly",
+              body: "The value is encrypted with the public key using ECDH plus ChaChaPoly. Because encryption only needs the public half, adding a secret never asks for Touch ID. The ciphertext lands in a 0600 file under your profile, useless on any other Mac."),
+        Stage(icon: "touchid",
+              title: "Touch ID unlocks the whole batch at once",
+              body: "Decryption is the only step that needs the private key, and the Enclave releases it only after a live human authentication. One fingerprint opens every Enclave secret together, then caches them as short-lived session records."),
+        Stage(icon: "bolt.horizontal",
+              title: "Hermes reads them without ever prompting",
+              body: "At startup Hermes reads only those session records. A locked secret fails fast instead of hanging, so gateway and cron processes never block waiting for a fingerprint no one is there to give."),
+    ]
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                pageHeader("How it works", "What actually protects your keys, from silicon up.")
+                ForEach(Array(stages.enumerated()), id: \.element.id) { index, stage in
+                    Plate {
+                        HStack(alignment: .top, spacing: 16) {
+                            ZStack {
+                                Circle().fill(Theme.lapis.opacity(0.08)).frame(width: 46, height: 46)
+                                Image(systemName: stage.icon)
+                                    .font(.system(size: 18, weight: .light))
+                                    .foregroundStyle(Theme.lapis)
+                            }
+                            VStack(alignment: .leading, spacing: 6) {
+                                Eyebrow(text: "Step \(index + 1)")
+                                Text(stage.title)
+                                    .font(Theme.serif(17, weight: .semibold))
+                                    .foregroundStyle(Theme.ink)
+                                Text(stage.body)
+                                    .font(Theme.serif(13))
+                                    .foregroundStyle(Theme.inkSoft)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            Spacer(minLength: 0)
+                        }
+                    }
+                }
+                Plate {
+                    VStack(alignment: .leading, spacing: 7) {
+                        Eyebrow(text: "The honest tradeoff", tint: Theme.amber)
+                        Text("While a session is open, the plaintext sits in TTL-bounded records readable by anything running as you. That is the price of never prompting. Lock the session when you are done, or keep the TTL short.")
+                            .font(Theme.serif(13))
+                            .foregroundStyle(Theme.inkSoft)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                Ornament(width: 200).frame(maxWidth: .infinity)
+            }
+            .padding(30)
+        }
+    }
+}
+
 // MARK: - Shared rows
 
 struct SecretRow: View {
     @EnvironmentObject private var model: AppModel
     let secret: SecretStatus
     var showActions = false
+
+    private func pingColor(_ ping: String) -> Color {
+        switch ping {
+        case "ok": return Theme.verdigris
+        case "dead": return Color.red
+        case "…": return Theme.inkFaint
+        default: return Theme.amber
+        }
+    }
 
     var body: some View {
         Plate(padding: 14) {
@@ -750,6 +828,14 @@ struct SecretRow: View {
                 }
                 Spacer(minLength: 12)
 
+                if let ping = model.pingResults[secret.name] {
+                    Text(ping)
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(pingColor(ping))
+                        .padding(.horizontal, 7).padding(.vertical, 3)
+                        .background(pingColor(ping).opacity(0.1), in: Capsule())
+                }
+
                 HStack(spacing: 5) {
                     Circle()
                         .fill(secret.isUnlocked ? Theme.verdigris : Theme.amber)
@@ -769,6 +855,14 @@ struct SecretRow: View {
                         Button("Update value…", systemImage: "arrow.triangle.2.circlepath") {
                             model.prefillName = secret.name
                             model.showingAddSecret = true
+                        }
+                        if secret.mode == "plain" {
+                            Button("Migrate to Secure Enclave", systemImage: "cpu") {
+                                Task { await model.migrateToEnclave(secret) }
+                            }
+                        }
+                        Button("Test connection", systemImage: "bolt.horizontal") {
+                            Task { await model.testSecret(secret) }
                         }
                         Divider()
                         Button("Remove", systemImage: "trash", role: .destructive) {

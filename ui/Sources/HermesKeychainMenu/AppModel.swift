@@ -7,6 +7,7 @@ enum AppSection: String, CaseIterable, Identifiable {
     case secrets = "Secrets"
     case sessions = "Sessions"
     case profiles = "Sealed Profiles"
+    case howitworks = "How it works"
     case diagnostics = "Diagnostics"
     var id: String { rawValue }
     var icon: String {
@@ -15,6 +16,7 @@ enum AppSection: String, CaseIterable, Identifiable {
         case .secrets: "key.horizontal"
         case .sessions: "touchid"
         case .profiles: "externaldrive.badge.lock"
+        case .howitworks: "cpu"
         case .diagnostics: "waveform.path.ecg"
         }
     }
@@ -36,6 +38,7 @@ final class AppModel: ObservableObject {
     @Published var pendingDeletion: SecretStatus?
     @Published var chthoniosSummary = "Checking…"
     @Published var chthoniosAvailable = false
+    @Published var pingResults: [String: String] = [:]   // env name -> "ok" | "dead" | "unknown" | "…"
 
     // MARK: Derived state
     //
@@ -161,6 +164,29 @@ final class AppModel: ObservableObject {
             self.message = result.exitCode == 0 ? "\(secret.name) removed" : self.lastLine(result.output)
         }
         await refresh()
+    }
+
+    func migrateToEnclave(_ secret: SecretStatus) async {
+        await perform("Migrating \(secret.name) to the Enclave…", command: ["keychain", "migrate", secret.name]) { result in
+            self.message = result.exitCode == 0 ? "\(secret.name) is now Enclave-backed" : self.lastLine(result.output)
+        }
+        await refresh()
+    }
+
+    /// Ping the provider for one secret. Runs outside `perform` so several rows
+    /// can test at once and the isBusy gate never blocks a live network probe.
+    func testSecret(_ secret: SecretStatus) async {
+        pingResults[secret.name] = "…"
+        do {
+            let result = try await runner.run(["keychain", "test", secret.name])
+            let out = result.output.lowercased()
+            if out.contains("ok:") { pingResults[secret.name] = "ok" }
+            else if out.contains("unknown:") { pingResults[secret.name] = "unknown" }
+            else if out.contains("unreadable") { pingResults[secret.name] = "locked" }
+            else { pingResults[secret.name] = "dead" }
+        } catch {
+            pingResults[secret.name] = "dead"
+        }
     }
 
     func openRepository() {

@@ -129,6 +129,28 @@ def _pubkey(key_blob: str) -> Tuple[Optional[str], str]:
 # -- commands -----------------------------------------------------------------
 
 
+def _write_enclave(home: Path, env_name: str, value: str) -> Tuple[int, str]:
+    """Encrypt value to the Secure Enclave key and register it. Shared by
+    `store --enclave` and `migrate`. Returns (rc, message)."""
+    key_blob, err = _ensure_key(home)
+    if not key_blob:
+        return 1, f"enclave key unavailable: {err}"
+    pub, err = _pubkey(key_blob)
+    if not pub:
+        return 1, f"pubkey failed: {err}"
+    helper = _helper()
+    proc = kc.run_cli([helper, "encrypt", pub], stdin_data=value.encode())
+    if proc.returncode != 0:
+        return 1, "encrypt failed: " + (proc.stderr or b"").decode("utf-8", "replace").strip()
+    ct = (proc.stdout or b"").decode().strip()
+    dest = kc.ct_path(home, env_name)
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_text(ct + "\n")
+    dest.chmod(0o600)
+    kc.register_item(home, {"env": env_name, "mode": "enclave"})
+    return 0, f"stored {env_name} (enclave-encrypted, {dest})"
+
+
 def cmd_store(args) -> int:
     env_name = args.env_name
     if not kc.valid_env_name(env_name):
@@ -157,28 +179,11 @@ def cmd_store(args) -> int:
         })
         print(f"stored {env_name} (plain, service={service})")
     else:
-        key_blob, err = _ensure_key(home)
-        if not key_blob:
-            print(f"enclave key unavailable: {err}", file=sys.stderr)
-            return 1
-        pub, err = _pubkey(key_blob)
-        if not pub:
-            print(f"pubkey failed: {err}", file=sys.stderr)
-            return 1
-        helper = _helper()
-        proc = kc.run_cli([helper, "encrypt", pub], stdin_data=value.encode())
-        if proc.returncode != 0:
-            print("encrypt failed:",
-                  (proc.stderr or b"").decode("utf-8", "replace").strip(),
-                  file=sys.stderr)
-            return 1
-        ct = (proc.stdout or b"").decode().strip()
-        dest = kc.ct_path(home, env_name)
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        dest.write_text(ct + "\n")
-        dest.chmod(0o600)
-        kc.register_item(home, {"env": env_name, "mode": mode})
-        print(f"stored {env_name} (enclave-encrypted, {dest})")
+        rc, msg = _write_enclave(home, env_name, value)
+        if rc != 0:
+            print(msg, file=sys.stderr)
+            return rc
+        print(msg)
 
     print("Registered automatically; new Hermes processes can load it at startup.")
     return 0
@@ -311,6 +316,92 @@ def cmd_delete(args) -> int:
     return 0
 
 
+def cmd_migrate(args) -> int:
+    """Move a plain secret into the Secure Enclave: read plaintext, re-encrypt,
+    delete the old Keychain item. The value never leaves this process."""
+    home = _home_path()
+    env_name = args.env_name
+    if not kc.valid_env_name(env_name):
+        print(f"invalid environment variable name: {env_name!r}", file=sys.stderr)
+        return 2
+    items, _ = kc.parse_items(_effective_cfg())
+    item = next((i for i in items if i["env"] == env_name), None)
+    if item is None:
+        print(f"{env_name} is not registered", file=sys.stderr)
+        return 1
+    if item["mode"] == "enclave":
+        print(f"{env_name} is already enclave-mode")
+        return 0
+    value, err = kc.kc_read(item["service"], item["account"], item.get("keychain", ""))
+    if not value:
+        print(f"cannot read plain value for {env_name}: {err}", file=sys.stderr)
+        return 1
+    rc, msg = _write_enclave(home, env_name, value)
+    if rc != 0:
+        print(msg, file=sys.stderr)
+        return rc
+    kc.kc_delete(item["service"], item["account"], item.get("keychain", ""))
+    print(f"migrated {env_name} to enclave (old plain Keychain item removed)")
+    return 0
+
+
+def _read_value(home: Path, item: dict) -> Tuple[Optional[str], str]:
+    """Read a secret's plaintext for an internal probe. Plain reads from the
+    Keychain; enclave reads the unlock session (fails if locked)."""
+    if item["mode"] == "plain":
+        return kc.kc_read(item["service"], item["account"], item.get("keychain", ""))
+    return kc.session_read(home, item["env"])
+
+
+# env-name substring -> (url, header builder). Only providers we can probe
+# cheaply with a GET. ponytail: hardcoded map, extend when a new key type shows up.
+_PROBES: Dict[str, tuple] = {
+    "MISTRAL": ("https://api.mistral.ai/v1/models", lambda v: {"Authorization": f"Bearer {v}"}),
+    "TAVILY": ("https://api.tavily.com/", lambda v: {}),
+    "X_BEARER": ("https://api.twitter.com/2/users/me", lambda v: {"Authorization": f"Bearer {v}"}),
+    "OPENROUTER": ("https://openrouter.ai/api/v1/models", lambda v: {"Authorization": f"Bearer {v}"}),
+    "OPENAI": ("https://api.openai.com/v1/models", lambda v: {"Authorization": f"Bearer {v}"}),
+}
+
+
+def cmd_test(args) -> int:
+    """Ping the provider for a secret and report ok/dead. Never prints the value."""
+    import urllib.error
+    import urllib.request
+
+    home = _home_path()
+    env_name = args.env_name
+    items, _ = kc.parse_items(_effective_cfg())
+    item = next((i for i in items if i["env"] == env_name), None)
+    if item is None:
+        print(f"{env_name} is not registered", file=sys.stderr)
+        return 2
+    probe = next((p for key, p in _PROBES.items() if key in env_name), None)
+    if probe is None:
+        print(f"unknown: no known endpoint for {env_name}")
+        return 3
+    value, err = _read_value(home, item)
+    if not value:
+        print(f"unreadable: {err or 'locked — unlock first'}", file=sys.stderr)
+        return 1
+    url, headers = probe[0], probe[1](value)
+    req = urllib.request.Request(url, headers=headers)
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            code = resp.status
+    except urllib.error.HTTPError as exc:
+        code = exc.code
+    except Exception as exc:
+        print(f"dead: {type(exc).__name__}", file=sys.stderr)
+        return 1
+    # 2xx or a non-auth 4xx (e.g. 400/404) means the key authenticated fine.
+    if code < 400 or code in (400, 403, 404, 429):
+        print(f"ok: {env_name} authenticated (HTTP {code})")
+        return 0
+    print(f"dead: HTTP {code} (auth rejected)", file=sys.stderr)
+    return 1
+
+
 def cmd_setup(args) -> int:
     print("Apple Keychain / Secure Enclave secret source — setup\n")
     print("1. Store a secret:")
@@ -356,6 +447,14 @@ def setup_cli_parser(parser) -> None:
     p.add_argument("--service", default=None)
     p.add_argument("--account", default=None)
     p.set_defaults(kc_fn=cmd_delete)
+
+    p = sub.add_parser("migrate", help="move a plain secret into the Secure Enclave")
+    p.add_argument("env_name")
+    p.set_defaults(kc_fn=cmd_migrate)
+
+    p = sub.add_parser("test", help="ping the provider to check a key is live")
+    p.add_argument("env_name")
+    p.set_defaults(kc_fn=cmd_test)
 
 
 def cli_dispatch(args) -> int:
