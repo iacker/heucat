@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleIdentifier</key>
+	<string>com.hermes.keychain-helper</string>
+	<key>CFBundleName</key>
+	<string>hermes-keychain-helper</string>
+	<key>CFBundleVersion</key>
+	<string>1.0</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.0</string>
+	<!-- Shown in the Touch ID prompt; required for LocalAuthentication to grant biometry. -->
+	<key>NSFaceIDUsageDescription</key>
+	<string>Unlock Hermes secrets stored in the Secure Enclave.</string>
+</dict>
+</plist>
