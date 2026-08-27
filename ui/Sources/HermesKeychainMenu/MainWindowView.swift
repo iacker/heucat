@@ -49,7 +49,7 @@ struct MainWindowView: View {
         VStack(spacing: 0) {
             VStack(spacing: 9) {
                 Crest(size: 74)
-                Text("HERMES KEYCHAIN")
+                Text("HEUCAT KEYCHAIN")
                     .font(Theme.serif(11, weight: .medium))
                     .tracking(2.2)
                     .foregroundStyle(Theme.ink)
@@ -140,7 +140,7 @@ struct MainWindowView: View {
 
     private var titleBar: some View {
         HStack(spacing: 14) {
-            Text("Hermes Keychain")
+            Text("HEUCAT Keychain")
                 .font(Theme.serif(15, weight: .medium))
                 .foregroundStyle(Theme.ink)
             Spacer()
@@ -221,7 +221,7 @@ struct OverviewView: View {
             HStack(spacing: 0) {
                 VStack(alignment: .leading, spacing: 0) {
                     Eyebrow(text: "Runtime secret source")
-                    Text("HERMES")
+                    Text("HEUCAT")
                         .font(Theme.display(46, weight: .regular))
                         .foregroundStyle(Theme.ink)
                         .tracking(1.5)
@@ -232,7 +232,7 @@ struct OverviewView: View {
                         .foregroundStyle(Theme.lapis)
                         .tracking(1.5)
                         .fixedSize()
-                    Text("Secure your keys.\nEmpower your agent.\nCommand with trust.")
+                    Text("Between worlds,\nshe keeps the keys.")
                         .font(Theme.serif(15))
                         .foregroundStyle(Theme.inkSoft)
                         .lineSpacing(4)

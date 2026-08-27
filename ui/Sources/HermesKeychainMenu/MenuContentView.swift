@@ -41,7 +41,7 @@ struct MenuContentView: View {
                 .font(.title2)
                 .foregroundStyle(model.status.sourceEnabled ? .green : .secondary)
             VStack(alignment: .leading, spacing: 2) {
-                Text("Hermes Keychain")
+                Text("HEUCAT Keychain")
                     .font(.headline)
                 Text("Apple Keychain + Secure Enclave")
                     .font(.caption)

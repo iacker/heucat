@@ -28,7 +28,7 @@ struct HermesKeychainMenuApp: App {
     @StateObject private var model = AppModel()
 
     var body: some Scene {
-        Window("Hermes Keychain", id: "main") {
+        Window("HEUCAT Keychain", id: "main") {
             MainWindowView()
                 .environmentObject(model)
                 .task { await exportDiagnosticCaptureIfRequested() }
@@ -46,7 +46,7 @@ struct HermesKeychainMenuApp: App {
             MenuContentView()
                 .environmentObject(model)
         } label: {
-            Label("Hermes Keychain", systemImage: model.iconName)
+            Label("HEUCAT Keychain", systemImage: model.iconName)
         }
         .menuBarExtraStyle(.window)
 

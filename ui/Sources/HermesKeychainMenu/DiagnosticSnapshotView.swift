@@ -26,7 +26,7 @@ struct DiagnosticSnapshotView: View {
 
     private var titleBar: some View {
         HStack(spacing: 14) {
-            Text("Hermes Keychain")
+            Text("HEUCAT Keychain")
                 .font(Theme.serif(15, weight: .medium))
                 .foregroundStyle(Theme.ink)
             Spacer()
@@ -73,13 +73,13 @@ struct DiagnosticSnapshotView: View {
             HStack(spacing: 0) {
                 VStack(alignment: .leading, spacing: 0) {
                     Eyebrow(text: "Runtime secret source")
-                    Text("HERMES")
+                    Text("HEUCAT")
                         .font(Theme.display(46)).tracking(1.5)
                         .foregroundStyle(Theme.ink).fixedSize().padding(.top, 12)
                     Text("KEYCHAIN")
                         .font(Theme.display(46)).tracking(1.5)
                         .foregroundStyle(Theme.lapis).fixedSize()
-                    Text("Secure your keys.\nEmpower your agent.\nCommand with trust.")
+                    Text("Between worlds,\nshe keeps the keys.")
                         .font(Theme.serif(15)).lineSpacing(4)
                         .foregroundStyle(Theme.inkSoft).fixedSize().padding(.top, 16)
                     Ornament(width: 132).padding(.top, 18)
@@ -276,7 +276,7 @@ struct DiagnosticSnapshotView: View {
         VStack(spacing: 0) {
             VStack(spacing: 9) {
                 Crest(size: 74)
-                Text("HERMES KEYCHAIN").font(Theme.serif(11, weight: .medium)).tracking(2.2)
+                Text("HEUCAT KEYCHAIN").font(Theme.serif(11, weight: .medium)).tracking(2.2)
                     .foregroundStyle(Theme.ink)
                 Text("MMXXVI").font(Theme.caption(8)).tracking(3).foregroundStyle(Theme.inkFaint)
                 Ornament(width: 92).padding(.top, 3)
