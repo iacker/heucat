@@ -1,29 +1,43 @@
 # hermes-keychain-secretsource
 
-Apple Keychain + **Secure Enclave** secret source for
-[Hermes Agent](https://github.com/NousResearch/hermes-agent). Keep API keys
-out of `.env` files: serve them from the macOS Keychain, and optionally
-gate them behind **Touch ID / user-presence authentication** with
-hardware-backed Secure Enclave encryption.
+Serve [Hermes Agent](https://github.com/NousResearch/hermes-agent) API keys from
+the macOS Keychain instead of a plaintext `.env` file. Secrets you care about
+more can sit behind Touch ID, encrypted with a key that never leaves the Secure
+Enclave.
 
-Runtime companion of
-[hermes-chthonios](https://github.com/iacker/hermes-chthonios) — Chthonios
-seals secrets *at rest*, this source *serves* them at execution.
+This is the runtime half of a pair. [hermes-chthonios](https://github.com/iacker/hermes-chthonios)
+seals a whole profile at rest. This plugin hands individual secrets to a running
+process.
+
+## The problem
+
+A Hermes `.env` file is a list of API keys in plaintext, mode 0600. That is fine
+against another user account on the same Mac. It does nothing against anything
+running as you: a curious npm postinstall script, a browser extension with file
+access, a backup that syncs somewhere you forgot about.
+
+Moving those keys into the Keychain does not magically fix that. A plain Keychain
+item is readable by any process running as you once the login keychain is
+unlocked, which is all day. What it does fix is the flat file: `cat .env` stops
+being a credential dump, and backups stop carrying keys.
+
+Enclave mode is the part that actually raises the bar. The value is encrypted
+with a P256 key generated inside the Secure Enclave, and decryption requires a
+live human authentication. Until someone touches the sensor, an attacker with
+full read access to your disk gets ciphertext.
 
 ## Two modes
 
 | | `plain` | `enclave` |
 |---|---|---|
-| Storage | macOS Keychain generic password | Ciphertext file, key in Secure Enclave |
-| Read requires | login session (or System keychain) | live user authentication (Touch ID / password / Watch) |
-| Headless daemons | ✅ (System keychain) | ❌ by design |
-| Startup prompt | never | never — out-of-band `hermes keychain unlock` |
-| Value at rest | encrypted by keychain | ChaChaPoly, P256 key that never leaves the enclave |
+| Storage | Keychain generic password | Ciphertext file, key inside the Secure Enclave |
+| Read requires | an unlocked login session | live user authentication |
+| Works headless | yes, via the System keychain | no, by design |
+| Prompt at Hermes startup | never | never, you unlock out of band |
+| Value at rest | encrypted by the Keychain | ChaChaPoly, key that cannot be exported |
 
-**Why enclave mode matters:** a plain keychain item is readable by any
-process running as you once the keychain is unlocked (which it is, all
-day). An enclave item is unreadable until a human proves presence —
-malware scraping your dotfiles or keychain gets ciphertext.
+Pick plain for anything a daemon or cron job needs at boot. Pick enclave for keys
+where you would rather the process fail than have them read silently.
 
 ## Install
 
@@ -32,95 +46,86 @@ git clone https://github.com/iacker/hermes-keychain-secretsource \
     ~/.hermes/plugins/keychain-secretsource
 ```
 
-Enable it in `~/.hermes/config.yaml` (the plugin key is `keychain`):
+Enable it in `~/.hermes/config.yaml`. The key is `keychain`, which is the plugin
+name from the manifest, not the directory name:
 
 ```yaml
 plugins:
   enabled:
     - keychain
-```
 
-The Secure Enclave helper builds itself on first `store --enclave`
-(needs Xcode Command Line Tools: `xcode-select --install`).
-
-## Native menu bar app
-
-The optional SwiftUI app in [`ui/`](ui/) shows source and per-secret state,
-and runs unlock or lock without opening a terminal. It delegates security
-operations to the same plugin CLI and never puts secret values in process
-arguments.
-
-```bash
-cd ui
-./scripts/test.sh
-./scripts/build-app.sh
-open "dist/Hermes Keychain.app"
-```
-
-The local build is ad-hoc signed. Public binary distribution requires a
-Developer ID signature and Apple notarization.
-
-## Quick start
-
-```bash
-# 1. Store secrets
-hermes keychain store OPENROUTER_API_KEY              # plain
-hermes keychain store GITHUB_TOKEN --enclave          # Secure Enclave
-
-# 2. Reference them in config.yaml
-```
-
-```yaml
 secrets:
   sources: [keychain]
   keychain:
     enabled: true
-    accounts:                # plain mode, account name == env var
-      - OPENROUTER_API_KEY
-    items:
-      - env: GITHUB_TOKEN
-        mode: enclave
 ```
 
-```bash
-# 3. Enclave secrets: authenticate once per session (default 8h)
-hermes keychain unlock
+If you run profiles, the plugin goes in that profile's directory instead, for
+example `~/.hermes/profiles/<name>/plugins/`.
 
-# 4. Check state
+The Secure Enclave helper compiles itself the first time you store an enclave
+secret. You need Xcode Command Line Tools for that (`xcode-select --install`).
+
+## Storing secrets
+
+```bash
+hermes keychain store OPENROUTER_API_KEY            # plain
+hermes keychain store GITHUB_TOKEN --enclave        # Secure Enclave
+```
+
+Storing registers the secret automatically, so you do not have to hand-edit
+`config.yaml` to declare it. The registration lives in a 0600 JSON file under
+your profile and is written atomically. Explicit `accounts` and `items` entries
+in `config.yaml` still work and still take precedence, so an existing setup keeps
+behaving the way it did.
+
+For enclave secrets, authenticate once per session:
+
+```bash
+hermes keychain unlock
+```
+
+Then check where things stand:
+
+```bash
 hermes keychain status
 ```
 
 ## How enclave mode works
 
 ```
-store --enclave        unlock (once)              fetch (every startup)
-  │                      │                          │
-  ▼                      ▼                          ▼
-P256 pubkey ──encrypt──▶ Touch ID ──decrypt──▶ session record ──▶ env vars
-(no prompt)              ONE prompt for        (login keychain,   (silent)
-                         the whole batch        TTL-bounded)
+store --enclave          unlock (once)             fetch (every startup)
+     |                        |                          |
+     v                        v                          v
+P256 public key   ->   one Touch ID prompt   ->   session record   ->   env vars
+no prompt              for the whole batch        TTL bounded            silent
 ```
 
-- `keygen` creates a P256 key **inside** the Secure Enclave, access-gated
-  on user presence (`--strict-biometry` binds it to the currently
-  enrolled fingerprints instead). The exported blob is useless on any
-  other machine.
-- `encrypt` needs only the public key — **no prompt** to add secrets.
-- `unlock` authenticates **once** (a single LAContext for the whole
-  batch), then caches plaintexts as TTL-bounded session records in the
-  login keychain. They are encrypted at rest by macOS, namespaced per Hermes
-  profile, never written to ordinary files, and expired records self-delete.
-  During that TTL, a process already running as your unlocked macOS user may
-  be able to read those records; `hermes keychain lock` clears them early.
-- `fetch()` (the Hermes startup path) only ever reads session records.
-  Locked secrets are a warning (or `AUTH_EXPIRED` with a remediation
-  hint when nothing is readable), never a blocking prompt: gateway,
-  cron, and subagent startups stay non-interactive by contract.
+`keygen` creates the P256 key inside the Secure Enclave, gated on user presence.
+Add `--strict-biometry` to bind it to the fingerprints enrolled right now, so
+enrolling a new finger invalidates it. The exported key blob is useless on any
+other machine.
 
-## Headless / daemon setups
+`encrypt` only needs the public key, so adding a secret never prompts.
 
-Use plain mode with the System keychain (readable from any security
-session, including launchd at boot):
+`unlock` authenticates once for the whole batch, then caches the plaintexts as
+TTL-bounded session records in the login keychain. They are encrypted at rest by
+macOS, namespaced per Hermes profile, and expired records delete themselves.
+
+Be honest about what that last step costs you. During the TTL window, those
+values are readable by a process running as your unlocked user, which is the same
+exposure as plain mode. That is the tradeoff for letting cron jobs and gateway
+children start without a prompt. `hermes keychain lock` closes the window early,
+and a short `session_ttl_seconds` narrows it.
+
+`fetch()` only ever reads session records. A locked secret produces a warning, or
+`AUTH_EXPIRED` with a hint when nothing is readable. It never blocks startup,
+because gateway, cron, and subagent processes have to stay non-interactive.
+
+## Headless and daemon setups
+
+launchd jobs at boot have no login session, so use plain mode against the System
+keychain:
 
 ```yaml
 secrets:
@@ -135,46 +140,79 @@ sudo security add-generic-password -U -s hermes \
     -a OPENROUTER_API_KEY -w "$VALUE" /Library/Keychains/System.keychain
 ```
 
-## Config reference (`secrets.keychain.*`)
+## Config reference
+
+Everything lives under `secrets.keychain`.
 
 | Key | Default | Meaning |
 |---|---|---|
 | `enabled` | `false` | Master switch |
 | `service` | `hermes` | Keychain service name for plain items |
-| `accounts` | `[]` | Env var names, plain mode, account == name |
-| `items` | `[]` | Per-secret: `{env, mode: plain\|enclave, service?, account?, keychain?}` |
-| `default_keychain` | `""` | Keychain file for plain reads (empty = search list) |
-| `session_ttl_seconds` | `28800` | Enclave unlock validity (8h) |
-| `timeout_seconds` | `30` | Fetch wall-clock budget |
+| `accounts` | `[]` | Env var names in plain mode, account name equals the variable |
+| `items` | `[]` | Per secret: `{env, mode: plain\|enclave, service?, account?, keychain?}` |
+| `default_keychain` | `""` | Keychain file for plain reads, empty means the search list |
+| `session_ttl_seconds` | `28800` | How long an unlock stays valid, 8 hours |
+| `timeout_seconds` | `30` | Wall clock budget for a fetch |
 
 ## CLI
 
 ```
-hermes keychain setup                 setup walkthrough
+hermes keychain setup                 walk through first-time setup
 hermes keychain store <ENV> [--enclave] [--service S] [--account A]
-hermes keychain unlock                one auth, open all enclave sessions
+hermes keychain unlock                one auth, opens every enclave session
 hermes keychain lock                  clear sessions now
-hermes keychain status                per-secret state
-hermes keychain delete <ENV>          remove item + ciphertext + session
+hermes keychain status                per secret state
+hermes keychain delete <ENV>          remove item, ciphertext, session, registration
 ```
+
+`store` also accepts `--stdin` so a GUI or a script can pipe a value in without
+it ever appearing in `ps` output or shell history.
+
+## Desktop app
+
+There is an optional SwiftUI app in [`ui/`](ui/). It shows source and per secret
+state, adds and deletes secrets, and runs unlock or lock without a terminal. It
+shells out to the same plugin CLI and pipes secret values over stdin, so nothing
+sensitive lands in process arguments.
+
+It also has a Sealed Profiles section that reports Chthonios state next to the
+Keychain state. The two crypto engines stay separate on purpose. Only the
+dashboard is shared, so you can see runtime secrets and sealed profiles in one
+window without one system pretending to be the other.
+
+```bash
+cd ui
+./scripts/test.sh
+./scripts/build-app.sh
+open "dist/Hermes Keychain.app"
+```
+
+The build is ad-hoc signed, which is fine locally. Handing the binary to someone
+else means a Developer ID signature and notarization.
 
 ## Security model
 
-- `fetch()` **never raises, never prompts, never writes `os.environ`** —
-  the Hermes orchestrator owns precedence and application.
-- All subprocess calls are argv-list with a minimal allowlisted env and
-  stdin closed (`/usr/bin/security` can't prompt; a locked keychain
-  fails fast).
-- The Swift helper is ~200 lines, reviewable in one sitting
-  (`helper/main.swift`), built locally, ad-hoc signed.
-- Enclave ciphertexts and the key blob live under
-  `$HERMES_HOME/keychain/` with mode `0600`. The blob without this
-  machine's enclave + a live authentication decrypts nothing.
-- Why not biometric Keychain ACLs directly? `SecAccessControl` biometric
-  flags require the Data Protection keychain, which requires a paid
-  Apple Developer application-identifier entitlement — impossible for an
-  ad-hoc signed OSS CLI. The enclave-key design (same model as
-  age-plugin-se) delivers the same guarantee without the entitlement.
+`fetch()` never raises, never prompts, and never writes to `os.environ`. Hermes
+owns precedence and application. This plugin only returns a result.
+
+Subprocess calls pass an argv list with a minimal allowlisted environment and
+stdin closed. `/usr/bin/security` therefore cannot prompt, and a locked keychain
+fails fast instead of hanging.
+
+The Swift helper is about 200 lines in `helper/main.swift`. You can read the
+whole thing in one sitting, which was the point.
+
+Enclave ciphertexts and the key blob live under `$HERMES_HOME/keychain/` at mode
+0600. Copying them to another Mac gets you nothing, because the private key
+cannot leave this machine's Secure Enclave.
+
+One design note worth recording: biometric Keychain ACLs would have been the
+obvious approach, and they do not work here. `SecAccessControl` biometric flags
+require the Data Protection keychain, which requires a paid Apple Developer
+application-identifier entitlement. An ad-hoc signed open source CLI cannot get
+one, and the attempt fails with `errSecMissingEntitlement`. Encrypting against an
+enclave key, the same approach age-plugin-se takes, gets the same guarantee
+without the entitlement.
 
 ## Tests
 
@@ -183,8 +221,14 @@ HERMES_AGENT_SRC=~/.hermes/hermes-agent \
   uv run --with pytest --with pyyaml --with rich python -m pytest tests/ -v
 ```
 
-Hermetic (no real keychain/enclave touched) and includes the upstream
-`SecretSourceConformance` kit. 29 tests.
+33 tests. They are hermetic, so no real keychain or enclave is touched, and they
+include the upstream `SecretSourceConformance` kit.
+
+The Swift side has its own check:
+
+```bash
+cd ui && ./scripts/test.sh
+```
 
 ## License
 
