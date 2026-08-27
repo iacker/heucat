@@ -123,6 +123,10 @@ def run_cli(argv, *, timeout: float = 30.0, stdin_data: Optional[bytes] = None):
         timeout=timeout,
         input=stdin_data,
         stdin=None if stdin_data is not None else subprocess.DEVNULL,
+        # Detach from the controlling terminal so `security`'s bare -w prompt
+        # can't grab /dev/tty and hang; with no tty it reads the value from
+        # stdin, which is the whole point of feeding it there.
+        start_new_session=True,
     )
 
 
