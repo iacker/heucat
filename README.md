@@ -1,9 +1,13 @@
-# hermes-keychain-secretsource
+# HEUCAT
 
-Serve [Hermes Agent](https://github.com/NousResearch/hermes-agent) API keys from
+*Hardware Enclave Credential Authentication Tool.* Serve [Hermes Agent](https://github.com/NousResearch/hermes-agent) API keys from
 the macOS Keychain instead of a plaintext `.env` file. Secrets you care about
 more can sit behind Touch ID, encrypted with a key that never leaves the Secure
 Enclave.
+
+The repo and the plugin still answer to the name `keychain` internally, so
+nothing in your config changes. HEUCAT is the product name the app and these
+docs use.
 
 This is the runtime half of a pair. [hermes-chthonios](https://github.com/iacker/hermes-chthonios)
 seals a whole profile at rest. This plugin hands individual secrets to a running
@@ -73,7 +77,7 @@ where you would rather the process fail than have them read silently.
 ## Install
 
 ```bash
-git clone https://github.com/iacker/hermes-keychain-secretsource \
+git clone https://github.com/iacker/heucat \
     ~/.hermes/plugins/keychain-secretsource
 ```
 
@@ -215,8 +219,8 @@ window without one system pretending to be the other.
 cd ui
 ./scripts/test.sh
 ./scripts/build-app.sh
-cp -R "dist/Hermes Keychain.app" /Applications/
-open -a "Hermes Keychain"
+cp -R "dist/HEUCAT Keychain.app" /Applications/
+open -a "HEUCAT Keychain"
 ```
 
 The build script generates the icon from `ui/assets/icon-source.png` when Pillow
