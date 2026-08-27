@@ -99,6 +99,23 @@ def _ensure_key(home: Path) -> Tuple[Optional[str], str]:
     return blob, ""
 
 
+def _biometry_hint(helper) -> None:
+    """Warn (once, to stderr) when Secure Enclave is present but no fingerprint
+    is enrolled — otherwise macOS silently downgrades to the login password and
+    the user never learns Touch ID is one setting away. This is the exact trap
+    that makes `unlock` feel broken."""
+    proc = kc.run_cli([helper, "check"], timeout=10.0)
+    out = (proc.stdout or b"").decode("utf-8", "replace")
+    if "secure_enclave=true" in out and "biometry=false" in out:
+        print(
+            "Touch ID isn't set up on this Mac, so you'll be asked for your "
+            "login password instead.\n"
+            "  To use your fingerprint: System Settings > Touch ID & Password "
+            "> Add Fingerprint, then run this again.",
+            file=sys.stderr,
+        )
+
+
 def _pubkey(key_blob: str) -> Tuple[Optional[str], str]:
     helper, err = _ensure_helper_built()
     if not helper:
@@ -200,6 +217,7 @@ def cmd_unlock(args) -> int:
         return 1
 
     cts = [kc.ct_path(home, name).read_text().strip() for name in targets]
+    _biometry_hint(helper)
     print(f"Authenticating to unlock {len(targets)} secret(s)…")
     proc = kc.run_cli([helper, "decrypt", key_blob, *cts], timeout=120.0)
     if proc.returncode == 5:
@@ -253,6 +271,12 @@ def cmd_status(args) -> int:
 
     print(f"source enabled : {enabled}")
     print(f"helper binary  : {helper or 'not built (auto-builds on first store --enclave)'}")
+    if helper:
+        chk = (kc.run_cli([helper, "check"], timeout=10.0).stdout or b"").decode("utf-8", "replace")
+        if "secure_enclave=true" in chk:
+            biometry = "Touch ID ready" if "biometry=true" in chk \
+                else "no fingerprint enrolled — falls back to login password"
+            print(f"biometry       : {biometry}")
     print(f"enclave key    : {'present' if kc.key_blob_path(home).is_file() else 'none yet'}")
     print(f"configured     : {len(items)} secret(s)")
     for item in items:
