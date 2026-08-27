@@ -5,14 +5,22 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
-            TextField("Hermes CLI", text: $model.hermesBinary)
-            TextField("Hermes home", text: $model.hermesHome)
-            Text("No secret values are handled by the UI. Unlock and lock are delegated to the plugin CLI.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            Section("Hermes runtime") {
+                LabeledContent("CLI executable") { TextField("Hermes CLI", text: $model.hermesBinary).frame(width: 330) }
+                LabeledContent("Profile home") { TextField("Hermes home", text: $model.hermesHome).frame(width: 330) }
+                LabeledContent("Chthonios CLI") { TextField("Chthonios CLI", text: $model.chthoniosBinary).frame(width: 330) }
+            }
+            Section("Privacy") {
+                Label("Secret values are accepted in protected fields, piped directly to the local CLI, cleared from the form, and never displayed again.", systemImage: "hand.raised.fill")
+                    .font(.callout).foregroundStyle(.secondary)
+            }
+            HStack {
+                Spacer()
+                Button("Verify connection") { Task { await model.refresh() } }.disabled(model.isBusy)
+            }
         }
         .formStyle(.grouped)
         .padding()
-        .frame(width: 520, height: 220)
+        .frame(width: 620, height: 310)
     }
 }

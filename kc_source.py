@@ -54,7 +54,10 @@ class KeychainSource(SecretSource):
             result.error_kind = ErrorKind.BINARY_MISSING
             return result
 
-        items, warnings = kc.parse_items(cfg if isinstance(cfg, dict) else {})
+        effective_cfg = kc.merge_registered_items(
+            cfg if isinstance(cfg, dict) else {}, home_path
+        )
+        items, warnings = kc.parse_items(effective_cfg)
         result.warnings.extend(warnings)
         if not items:
             result.error = (

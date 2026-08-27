@@ -2,6 +2,7 @@ import SwiftUI
 
 struct MenuContentView: View {
     @EnvironmentObject private var model: AppModel
+    var autoRefresh = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -29,7 +30,9 @@ struct MenuContentView: View {
         }
         .padding(16)
         .frame(width: 390)
-        .task { await model.refresh() }
+        .task {
+            if autoRefresh { await model.refresh() }
+        }
     }
 
     private var header: some View {

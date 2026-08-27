@@ -23,11 +23,12 @@ struct HermesRunner {
     let binaryPath: String
     let hermesHome: String
 
-    func run(_ arguments: [String]) async throws -> CommandResult {
+    func run(_ arguments: [String], stdinData: Data? = nil) async throws -> CommandResult {
         try await withCheckedThrowingContinuation { continuation in
             let process = Process()
             let stdout = Pipe()
             let stderr = Pipe()
+            let stdin = Pipe()
 
             guard FileManager.default.isExecutableFile(atPath: binaryPath) else {
                 continuation.resume(throwing: HermesRunnerError.binaryNotFound)
@@ -38,6 +39,7 @@ struct HermesRunner {
             process.arguments = arguments
             process.standardOutput = stdout
             process.standardError = stderr
+            process.standardInput = stdin
 
             let parentEnvironment = ProcessInfo.processInfo.environment
             var environment: [String: String] = [:]
@@ -57,6 +59,8 @@ struct HermesRunner {
 
             do {
                 try process.run()
+                if let stdinData { stdin.fileHandleForWriting.write(stdinData) }
+                try? stdin.fileHandleForWriting.close()
             } catch {
                 continuation.resume(throwing: HermesRunnerError.launchFailed(error.localizedDescription))
             }

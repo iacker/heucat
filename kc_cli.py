@@ -35,6 +35,10 @@ def _load_cfg() -> dict:
         return {}
 
 
+def _effective_cfg() -> dict:
+    return kc.merge_registered_items(_load_cfg(), _home_path())
+
+
 def _helper() -> Optional[Path]:
     return kc.helper_path()
 
@@ -116,17 +120,24 @@ def cmd_store(args) -> int:
     mode = "enclave" if args.enclave else "plain"
     home = _home_path()
 
-    value = getpass.getpass(f"Value for {env_name} (hidden): ")
+    value = sys.stdin.read().rstrip("\n") if args.stdin else getpass.getpass(
+        f"Value for {env_name} (hidden): "
+    )
     if not value:
         print("empty value, aborting", file=sys.stderr)
         return 1
 
     if mode == "plain":
         service = args.service or kc.DEFAULT_SERVICE
-        err = kc.kc_write(service, args.account or env_name, value)
+        account = args.account or env_name
+        err = kc.kc_write(service, account, value)
         if err:
             print(f"keychain write failed: {err}", file=sys.stderr)
             return 1
+        kc.register_item(home, {
+            "env": env_name, "mode": mode,
+            "service": service, "account": account,
+        })
         print(f"stored {env_name} (plain, service={service})")
     else:
         key_blob, err = _ensure_key(home)
@@ -149,16 +160,16 @@ def cmd_store(args) -> int:
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_text(ct + "\n")
         dest.chmod(0o600)
+        kc.register_item(home, {"env": env_name, "mode": mode})
         print(f"stored {env_name} (enclave-encrypted, {dest})")
 
-    print(f"\nAdd to config.yaml under secrets.keychain:"
-          f"\n  items:\n    - env: {env_name}\n      mode: {mode}")
+    print("Registered automatically; new Hermes processes can load it at startup.")
     return 0
 
 
 def cmd_unlock(args) -> int:
     home = _home_path()
-    cfg = _load_cfg()
+    cfg = _effective_cfg()
     items, warnings = kc.parse_items(cfg)
     for w in warnings:
         print(f"warning: {w}", file=sys.stderr)
@@ -224,7 +235,7 @@ def cmd_unlock(args) -> int:
 
 
 def cmd_lock(args) -> int:
-    cfg = _load_cfg()
+    cfg = _effective_cfg()
     items, _ = kc.parse_items(cfg)
     targets = [i["env"] for i in items if i["mode"] == "enclave"]
     kc.session_clear(_home_path(), targets)
@@ -234,8 +245,9 @@ def cmd_lock(args) -> int:
 
 def cmd_status(args) -> int:
     home = _home_path()
-    cfg = _load_cfg()
-    enabled = bool(cfg.get("enabled"))
+    raw_cfg = _load_cfg()
+    cfg = _effective_cfg()
+    enabled = bool(raw_cfg.get("enabled"))
     items, warnings = kc.parse_items(cfg)
     helper = _helper()
 
@@ -270,7 +282,8 @@ def cmd_delete(args) -> int:
     if ct.is_file():
         ct.unlink()
     kc.session_clear(home, [env_name])
-    print(f"deleted {env_name} (keychain item, ciphertext, session)")
+    kc.unregister_item(home, env_name)
+    print(f"deleted {env_name} (keychain item, ciphertext, session, registration)")
     return 0
 
 
@@ -279,15 +292,7 @@ def cmd_setup(args) -> int:
     print("1. Store a secret:")
     print("     hermes keychain store OPENROUTER_API_KEY            # plain")
     print("     hermes keychain store GITHUB_TOKEN --enclave        # SE-gated")
-    print("2. Reference it in ~/.hermes/config.yaml:")
-    print("     secrets:")
-    print("       sources: [keychain]")
-    print("       keychain:")
-    print("         enabled: true")
-    print("         items:")
-    print("           - env: OPENROUTER_API_KEY")
-    print("           - env: GITHUB_TOKEN")
-    print("             mode: enclave")
+    print("2. Secrets are registered automatically in the active Hermes profile.")
     print("3. For enclave secrets, open a session (one Touch ID / password):")
     print("     hermes keychain unlock")
     print("4. Verify: hermes keychain status")
@@ -310,6 +315,7 @@ def setup_cli_parser(parser) -> None:
                    help="encrypt to the Secure Enclave key (auth-gated)")
     p.add_argument("--service", default=None)
     p.add_argument("--account", default=None)
+    p.add_argument("--stdin", action="store_true", help="read value from stdin")
     p.set_defaults(kc_fn=cmd_store)
 
     p = sub.add_parser("unlock", help="authenticate once, open the session")

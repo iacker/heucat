@@ -22,6 +22,7 @@ sys.path.insert(0, str(_SRC / "tests" / "secret_sources"))
 from conformance import SecretSourceConformance  # noqa: E402
 
 from keychain_plugin.kc_source import KeychainSource  # noqa: E402
+from keychain_plugin import kc_cli  # noqa: E402
 from keychain_plugin import kc_common as kc  # noqa: E402
 from agent.secret_sources.base import ErrorKind, FetchResult  # noqa: E402
 
@@ -155,6 +156,27 @@ class TestNonMacos:
 
 
 class TestConfigParsing:
+    def test_registered_items_are_atomic_private_and_merged(self, tmp_path):
+        kc.register_item(tmp_path, {"env": "AUTO_TOKEN", "mode": "enclave"})
+        path = kc.registry_path(tmp_path)
+        assert path.stat().st_mode & 0o777 == 0o600
+        assert kc.merge_registered_items({}, tmp_path)["items"] == [
+            {"env": "AUTO_TOKEN", "mode": "enclave"}
+        ]
+
+    def test_unregister_removes_only_target(self, tmp_path):
+        kc.register_item(tmp_path, {"env": "ONE", "mode": "plain"})
+        kc.register_item(tmp_path, {"env": "TWO", "mode": "enclave"})
+        kc.unregister_item(tmp_path, "ONE")
+        assert kc.registered_items(tmp_path) == [{"env": "TWO", "mode": "enclave"}]
+
+    def test_registry_overrides_stale_yaml_entry(self, tmp_path):
+        kc.register_item(tmp_path, {"env": "TOKEN", "mode": "enclave"})
+        merged = kc.merge_registered_items(
+            {"items": [{"env": "TOKEN", "mode": "plain"}]}, tmp_path
+        )
+        assert merged["items"] == [{"env": "TOKEN", "mode": "enclave"}]
+
     def test_dedup_keeps_first(self):
         items, warnings = kc.parse_items(
             {"accounts": ["A", "A"], "items": [{"env": "A", "mode": "enclave"}]}
@@ -253,6 +275,29 @@ class TestNoPromptGuarantee:
         assert kc.kc_write("svc", "account", secret) == ""
         assert secret not in captured["argv"]
         assert captured["stdin_data"] == (secret + "\n" + secret + "\n").encode()
+
+    def test_store_stdin_bypasses_getpass_and_keeps_secret_out_of_argv(
+        self, tmp_path, monkeypatch
+    ):
+        import argparse
+        import io
+
+        secret = "gui-piped-sensitive-value"
+        captured = {}
+        monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+        monkeypatch.setattr("sys.stdin", io.StringIO(secret + "\n"))
+        monkeypatch.setattr(kc_cli.getpass, "getpass", lambda _: pytest.fail("getpass called"))
+        monkeypatch.setattr(kc, "kc_write", lambda service, account, value, keychain="": captured.update(
+            service=service, account=account, value=value
+        ) or "")
+        monkeypatch.setattr(kc_cli, "_load_cfg", lambda: {})
+        args = argparse.Namespace(
+            env_name="GUI_TOKEN", enclave=False, service=None, account=None, stdin=True
+        )
+
+        assert kc_cli.cmd_store(args) == 0
+        assert captured["value"] == secret
+        assert secret not in vars(args).values()
 
     def test_session_accounts_are_isolated_by_profile(self, tmp_path):
         profile_a = tmp_path / "profiles" / "a"

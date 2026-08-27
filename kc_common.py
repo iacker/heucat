@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import platform
 import subprocess
 import time
@@ -33,6 +34,51 @@ def key_blob_path(home_path: Path) -> Path:
 
 def secrets_dir(home_path: Path) -> Path:
     return state_dir(home_path) / "secrets"
+
+
+def registry_path(home_path: Path) -> Path:
+    return state_dir(home_path) / "items.json"
+
+
+def registered_items(home_path: Path) -> List[dict]:
+    try:
+        data = json.loads(registry_path(home_path).read_text(encoding="utf-8"))
+        return data if isinstance(data, list) else []
+    except (OSError, ValueError, TypeError):
+        return []
+
+
+def _write_registered_items(home_path: Path, items: List[dict]) -> None:
+    path = registry_path(home_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps(items, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    tmp.chmod(0o600)
+    os.replace(tmp, path)
+
+
+def register_item(home_path: Path, item: dict) -> None:
+    items = [entry for entry in registered_items(home_path)
+             if entry.get("env") != item.get("env")]
+    items.append(item)
+    _write_registered_items(home_path, items)
+
+
+def unregister_item(home_path: Path, env_name: str) -> None:
+    items = [entry for entry in registered_items(home_path)
+             if entry.get("env") != env_name]
+    _write_registered_items(home_path, items)
+
+
+def merge_registered_items(cfg: dict, home_path: Path) -> dict:
+    merged = dict(cfg) if isinstance(cfg, dict) else {}
+    configured, _ = parse_items(merged)
+    by_env = {item["env"]: item for item in configured}
+    for item in registered_items(home_path):
+        if isinstance(item, dict) and valid_env_name(item.get("env")):
+            by_env[item["env"]] = item
+    merged["items"] = list(by_env.values())
+    return merged
 
 
 def valid_env_name(env_name: object) -> bool:
