@@ -9,6 +9,37 @@ This is the runtime half of a pair. [hermes-chthonios](https://github.com/iacker
 seals a whole profile at rest. This plugin hands individual secrets to a running
 process.
 
+## What it actually does
+
+Hermes reads its API keys from environment variables at startup. Normally those
+come from a `.env` file sitting in your profile directory. This plugin registers
+itself as a secret source, so Hermes asks the Keychain instead and the `.env`
+file no longer has to hold anything sensitive.
+
+Concretely, four things:
+
+`hermes keychain store NAME` writes a value into the macOS Keychain and records
+the binding, so you never edit `config.yaml` by hand. Pass `--enclave` and the
+value is encrypted against a Secure Enclave key instead.
+
+At every Hermes startup, the plugin's `fetch()` reads those values and hands them
+back. This runs for the CLI, the gateway, cron jobs and subagents. It never
+prompts, so nothing can hang waiting for input that no one is there to give.
+
+`hermes keychain unlock` is the interactive half, and only enclave secrets need
+it. One Touch ID prompt opens a time-limited session covering all of them at
+once. `lock` closes it early.
+
+`hermes keychain status` reports what is stored and whether it is currently
+readable. The bundled Mac app is a window onto that same command: it adds,
+deletes, unlocks and locks, and it shows Chthonios state alongside. It never
+displays a secret value, and values reach the CLI over stdin so they never appear
+in `ps` or shell history.
+
+What it does not do: it is not a password manager, it does not sync anywhere, and
+it does not hold website logins. It moves machine credentials off the flat file
+for one Mac.
+
 ## The problem
 
 A Hermes `.env` file is a list of API keys in plaintext, mode 0600. That is fine
@@ -184,8 +215,19 @@ window without one system pretending to be the other.
 cd ui
 ./scripts/test.sh
 ./scripts/build-app.sh
-open "dist/Hermes Keychain.app"
+cp -R "dist/Hermes Keychain.app" /Applications/
+open -a "Hermes Keychain"
 ```
+
+The build script generates the icon from `ui/assets/icon-source.png` when Pillow
+is installed, and falls back to the committed `AppIcon.icns` when it is not, so
+the bundle always ships with an icon. Once it sits in `/Applications` it shows up
+in Finder, Launchpad and Spotlight like any other app.
+
+If you are packaging this yourself, note that the bundle deliberately does not
+set `LSUIElement`. That flag turns the app into a menu bar agent with no Dock
+icon, which is a reasonable choice for a background utility and a bad one for
+something you want to find and open.
 
 The build is ad-hoc signed, which is fine locally. Handing the binary to someone
 else means a Developer ID signature and notarization.
