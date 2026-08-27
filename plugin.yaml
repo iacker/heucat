@@ -1,0 +1,9 @@
+name: keychain
+version: 0.1.0
+description: >-
+  Apple Keychain secret source for Hermes. Plain mode reads generic passwords
+  via /usr/bin/security (login or System keychain, headless-friendly).
+  Biometric mode gates secrets behind Touch ID + Secure Enclave via a signed
+  Swift helper and an out-of-band unlock session, so startup never prompts.
+provides_hooks: []
+provides_tools: []
