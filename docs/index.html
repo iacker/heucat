@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hermes Keychain — Secure Enclave secret source for Hermes Agent</title>
+<meta name="description" content="Serve Hermes Agent API keys from the macOS Keychain and Secure Enclave instead of a plaintext .env file. Touch ID-gated secrets, zero startup prompts.">
+<meta property="og:title" content="Hermes Keychain">
+<meta property="og:description" content="Touch ID-gated secrets for Hermes Agent, encrypted with a key that never leaves the Secure Enclave. Zero startup prompts.">
+<meta property="og:type" content="website">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- Cormorant Garamond stands in for Didot on the web; system serif is the fallback -->
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=EB+Garamond:ital@0;1&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#F9F8F6; --paper-deep:#F4F3F1; --card:#ffffff;
+    --ink:#1B1D24; --ink-soft:#676B76; --ink-faint:#9CA0AA;
+    --lapis:#212DC7; --lapis-soft:#6D76E5; --verdigris:#1F8B68; --amber:#B47A1D;
+    --hairline:#E0DED9;
+    --display:"Cormorant Garamond",Didot,"Bodoni 72",Georgia,serif;
+    --serif:"EB Garamond",Baskerville,Georgia,serif;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0; color:var(--ink); background:var(--paper);
+    font-family:var(--serif); font-size:18px; line-height:1.65;
+    -webkit-font-smoothing:antialiased;
+    background-image:
+      radial-gradient(700px 700px at 8% 0%, rgba(255,255,255,.9), transparent 60%),
+      radial-gradient(620px 620px at 78% 12%, rgba(33,45,199,.035), transparent 60%);
+  }
+  a{color:var(--lapis); text-decoration:none}
+  a:hover{text-decoration:underline}
+  .wrap{max-width:960px; margin:0 auto; padding:0 28px}
+
+  /* eyebrow small-caps */
+  .eyebrow{font-family:var(--serif); font-size:12px; font-weight:600;
+    letter-spacing:.18em; text-transform:uppercase; color:var(--ink-faint)}
+
+  /* ornament: hairline broken by a lozenge */
+  .ornament{display:flex; align-items:center; justify-content:center; gap:10px; margin:0 auto}
+  .ornament .rule{height:1px; width:120px;
+    background:linear-gradient(90deg,transparent,rgba(156,160,170,.6))}
+  .ornament .rule.rev{background:linear-gradient(270deg,transparent,rgba(156,160,170,.6))}
+  .ornament .lozenge{width:7px;height:7px;transform:rotate(45deg);border:1px solid var(--ink-faint)}
+
+  /* crest */
+  .crest{width:88px;height:88px;position:relative;margin:0 auto 18px}
+  .crest .ring{position:absolute;inset:0;border-radius:50%;border:.6px solid rgba(33,45,199,.16)}
+  .crest .ring.inner{inset:8px;border-color:rgba(33,45,199,.10)}
+  .crest .h{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    font-family:var(--display);font-size:38px;font-weight:500;color:var(--lapis)}
+  .crest .tick{position:absolute;left:50%;top:2px;width:.6px;height:5px;background:rgba(33,45,199,.16);transform-origin:50% 42px}
+
+  /* hero */
+  header.hero{text-align:center;padding:78px 0 40px}
+  header.hero .title{font-family:var(--display);font-weight:500;font-size:clamp(46px,9vw,86px);
+    letter-spacing:.16em;margin:6px 0 2px;line-height:1}
+  header.hero .kicker{font-family:var(--serif);letter-spacing:.34em;text-transform:uppercase;
+    font-size:13px;color:var(--ink-soft);margin-bottom:20px}
+  header.hero .lede{font-family:var(--display);font-style:italic;font-size:24px;color:var(--ink-soft);
+    max-width:640px;margin:20px auto 0;line-height:1.4}
+  .badges{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin:26px 0 4px}
+  .badge{font-family:var(--mono);font-size:12px;color:var(--ink-soft);
+    border:1px solid var(--hairline);border-radius:20px;padding:5px 13px;background:var(--card)}
+  .cta{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:30px}
+  .btn{font-family:var(--serif);font-weight:600;font-size:15px;padding:12px 24px;border-radius:10px;
+    display:inline-flex;align-items:center;gap:8px;transition:.15s}
+  .btn.primary{background:var(--lapis);color:#fff;box-shadow:0 3px 10px rgba(33,45,199,.28)}
+  .btn.primary:hover{background:#1a24a8;text-decoration:none}
+  .btn.quiet{background:var(--card);color:var(--ink);border:1px solid var(--hairline)}
+  .btn.quiet:hover{background:var(--paper-deep);text-decoration:none}
+
+  section{padding:44px 0}
+  h2{font-family:var(--display);font-weight:500;font-size:36px;letter-spacing:.01em;margin:6px 0 4px}
+  h3{font-family:var(--serif);font-weight:600;font-size:20px;margin:0 0 6px}
+  .sec-head{text-align:center;margin-bottom:32px}
+  p{margin:0 0 16px}
+  .muted{color:var(--ink-soft)}
+
+  /* plates */
+  .plate{background:var(--card);border:.7px solid var(--hairline);border-radius:14px;
+    box-shadow:0 8px 22px rgba(27,29,36,.045);padding:26px}
+  .grid{display:grid;gap:18px}
+  .grid.two{grid-template-columns:1fr 1fr}
+  @media(max-width:720px){.grid.two{grid-template-columns:1fr}}
+
+  /* apple components list */
+  .comp{display:grid;grid-template-columns:auto 1fr;gap:18px;align-items:start;
+    padding:22px 0;border-bottom:.7px solid var(--hairline)}
+  .comp:last-child{border-bottom:0}
+  .comp .icn{width:46px;height:46px;border-radius:10px;background:rgba(33,45,199,.07);
+    display:flex;align-items:center;justify-content:center;color:var(--lapis)}
+  .comp .icn svg{width:24px;height:24px}
+  .comp .tag{font-family:var(--mono);font-size:11.5px;color:var(--lapis);
+    background:rgba(33,45,199,.07);border-radius:6px;padding:2px 8px;margin-left:8px;vertical-align:middle}
+  .comp .role{font-family:var(--serif);font-size:13px;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-faint);margin-top:8px}
+
+  table{width:100%;border-collapse:collapse;font-size:16px;margin:8px 0}
+  th,td{text-align:left;padding:11px 14px;border-bottom:.7px solid var(--hairline);vertical-align:top}
+  th{font-family:var(--serif);font-weight:600;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-faint)}
+  td.yes{color:var(--verdigris);font-weight:600}
+  td.no{color:var(--amber);font-weight:600}
+
+  pre{background:#14161d;color:#e9eaf0;border-radius:12px;padding:18px 20px;overflow:auto;
+    font-family:var(--mono);font-size:13.5px;line-height:1.7;margin:0 0 16px}
+  pre .c{color:#8b90a8}
+  code{font-family:var(--mono);font-size:.86em;background:var(--paper-deep);padding:2px 6px;border-radius:5px}
+  pre code{background:none;padding:0;font-size:1em}
+
+  /* flow diagram */
+  .flow{display:grid;grid-template-columns:1fr 1fr 1fr;gap:0;text-align:center;margin:14px 0}
+  @media(max-width:720px){.flow{grid-template-columns:1fr}}
+  .flow .step{padding:18px 14px;position:relative}
+  .flow .step + .step::before{content:"→";position:absolute;left:-9px;top:50%;transform:translateY(-50%);color:var(--ink-faint)}
+  @media(max-width:720px){.flow .step + .step::before{content:"↓";left:50%;top:-6px;transform:translateX(-50%)}}
+  .flow .step .k{font-family:var(--mono);font-size:13px;color:var(--lapis);font-weight:600}
+  .flow .step .d{font-size:14px;color:var(--ink-soft);margin-top:4px}
+
+  .note{border-left:2px solid var(--lapis);padding:2px 0 2px 18px;color:var(--ink-soft);font-style:italic}
+  .honest{background:rgba(180,122,29,.06);border:.7px solid rgba(180,122,29,.28);border-radius:12px;padding:20px 24px}
+  .honest h3{color:var(--amber)}
+
+  footer{text-align:center;padding:48px 0 60px;color:var(--ink-faint);font-size:14px}
+  footer .motto{font-family:var(--display);font-style:italic;letter-spacing:.28em;text-transform:uppercase;font-size:12px;margin-bottom:10px}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="crest" id="crest">
+      <div class="ring"></div><div class="ring inner"></div>
+      <div class="h">H</div>
+    </div>
+    <div class="eyebrow">MMXXVI · A Hermes Agent plugin</div>
+    <h1 class="title">HERMES KEYCHAIN</h1>
+    <div class="kicker">Secure Enclave secret source</div>
+    <div class="ornament"><span class="rule rev"></span><span class="lozenge"></span><span class="rule"></span></div>
+    <p class="lede">“Between worlds, she keeps the keys.”</p>
+    <div class="badges">
+      <span class="badge">macOS · Apple Silicon</span>
+      <span class="badge">Touch ID-gated</span>
+      <span class="badge">0 startup prompts</span>
+      <span class="badge">33 tests</span>
+      <span class="badge">MIT</span>
+    </div>
+    <div class="cta">
+      <a class="btn primary" href="https://github.com/iacker/hermes-keychain-secretsource">View on GitHub</a>
+      <a class="btn quiet" href="#install">Install</a>
+      <a class="btn quiet" href="#apple">Apple components</a>
+    </div>
+  </div>
+</header>
+
+<section id="what">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow">The idea</div>
+      <h2>Keys off the flat file</h2>
+    </div>
+    <div class="plate">
+      <p>Hermes Agent reads its API keys from environment variables at startup. Normally those come from a
+      <code>.env</code> file in your profile directory — a list of credentials in plaintext, mode <code>0600</code>.
+      That protects them from another user account. It does nothing against anything running as <em>you</em>: a curious
+      <code>npm postinstall</code>, a browser extension with disk access, a backup that syncs somewhere you forgot.</p>
+      <p>This plugin registers itself as a <strong>secret source</strong>. Hermes stops reading the file and asks the
+      macOS Keychain instead. The keys you care about most can sit behind Touch ID, encrypted with a key that
+      <strong>never leaves the Secure Enclave</strong>. It never prompts at startup, so the CLI, gateway, cron jobs and
+      subagents all keep booting unattended.</p>
+      <p class="muted">This is the runtime half of a pair.
+      <a href="https://github.com/iacker/hermes-chthonios">Chthonios</a> seals a whole profile at rest;
+      this plugin hands individual secrets to a running process.</p>
+    </div>
+  </div>
+</section>
+
+<section id="apple" style="background:var(--paper-deep)">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow">Under the hood</div>
+      <h2>The Apple hardware it stands on</h2>
+      <p class="muted">Every guarantee below is enforced by silicon or the OS, not by this code. Here is exactly which piece does what.</p>
+    </div>
+    <div class="plate">
+
+      <div class="comp">
+        <div class="icn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg></div>
+        <div>
+          <h3>Secure Enclave <span class="tag">hardware coprocessor</span></h3>
+          <p>A separate processor on the Apple Silicon SoC with its own encrypted memory, isolated from the main CPU
+          and the OS. Enclave mode generates a <strong>P256 private key inside it</strong> that can never be read out —
+          not by the kernel, not by root, not by a disk image. The key blob we store on disk is a sealed handle;
+          copy it to another Mac and it is inert, because the matching private half lives in <em>this</em> chip.</p>
+          <div class="role">Role here · holds the private key that decrypts enclave secrets</div>
+        </div>
+      </div>
+
+      <div class="comp">
+        <div class="icn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="9" cy="12" r="5"/><path d="M13 12h8M18 12v4M21 12v3"/></svg></div>
+        <div>
+          <h3>macOS Keychain <span class="tag">Security.framework</span></h3>
+          <p>The OS credential store. Plain-mode secrets are written as generic-password items via
+          <code>/usr/bin/security</code>, encrypted at rest by macOS and unlocked with your login session. It replaces
+          the flat file: <code>cat .env</code> stops being a credential dump and backups stop carrying keys. Session
+          records for enclave unlocks are cached here too, namespaced per Hermes profile.</p>
+          <div class="role">Role here · at-rest store for plain secrets and unlock sessions</div>
+        </div>
+      </div>
+
+      <div class="comp">
+        <div class="icn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 3c3 2 5 2 5 2v6c0 4-5 7-5 7s-5-3-5-7V5s2 0 5-2z"/><path d="M9.5 12l1.8 1.8L15 10"/></svg></div>
+        <div>
+          <h3>LocalAuthentication &amp; Touch ID <span class="tag">LAContext</span></h3>
+          <p>The framework that puts a live human in the loop. One <code>LAContext.evaluatePolicy</code> raises a single
+          Touch ID prompt that authorizes a <strong>whole batch</strong> of decryptions. When the sensor is unreachable —
+          a clamshell MacBook on an external keyboard — it falls back to the login password or an Apple Watch via
+          <code>deviceOwnerAuthentication</code>, so the flow never dead-ends.</p>
+          <div class="role">Role here · the “live human” gate on every enclave decrypt</div>
+        </div>
+      </div>
+
+      <div class="comp">
+        <div class="icn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M7 11V8a5 5 0 0110 0v3"/><rect x="5" y="11" width="14" height="9" rx="2"/></svg></div>
+        <div>
+          <h3>CryptoKit — P256 + ChaChaPoly <span class="tag">envelope encryption</span></h3>
+          <p>Encryption needs only the enclave key’s <strong>public half</strong>, so storing a secret never prompts.
+          An ephemeral P256 key does ECDH against it, HKDF-SHA256 derives a symmetric key, and ChaChaPoly seals the
+          value as an authenticated AEAD blob. Decryption runs the agreement <em>inside</em> the enclave — which is
+          where the Touch ID gate bites.</p>
+          <div class="role">Role here · the encrypt / decrypt envelope, public-key on the way in</div>
+        </div>
+      </div>
+
+      <div class="comp">
+        <div class="icn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 2l7 4v6c0 5-3.5 8-7 10-3.5-2-7-5-7-10V6z"/><path d="M12 8v4M12 15h.01"/></svg></div>
+        <div>
+          <h3>Access control flags <span class="tag">SecAccessControl</span></h3>
+          <p>The key is created gated on <code>.userPresence</code> by default. Pass <code>--strict-biometry</code> and
+          it binds to <code>.biometryCurrentSet</code> — the fingerprints enrolled <em>right now</em>. Enroll a new
+          finger later and the key invalidates itself. This is the anti-coercion cran: the key follows the enrollment,
+          not just the person.</p>
+          <div class="role">Role here · binds the key to presence, or to today’s exact biometrics</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<section id="modes">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow">Two modes</div>
+      <h2>Plain for daemons, Enclave for the crown jewels</h2>
+    </div>
+    <div class="plate">
+      <table>
+        <tr><th></th><th>plain</th><th>enclave</th></tr>
+        <tr><td>Storage</td><td>Keychain generic password</td><td>Ciphertext file, key inside the Secure Enclave</td></tr>
+        <tr><td>Read requires</td><td>an unlocked login session</td><td>live user authentication</td></tr>
+        <tr><td>Works headless</td><td class="yes">yes — via the System keychain</td><td class="no">no, by design</td></tr>
+        <tr><td>Prompt at startup</td><td class="yes">never</td><td class="yes">never — you unlock out of band</td></tr>
+        <tr><td>Value at rest</td><td>encrypted by the Keychain</td><td>ChaChaPoly, key that cannot be exported</td></tr>
+      </table>
+      <p class="muted" style="margin-top:10px">Pick <strong>plain</strong> for anything a cron job or the gateway needs at boot.
+      Pick <strong>enclave</strong> for keys where you would rather the process fail than have them read silently — the one that signs, or spends money.</p>
+    </div>
+  </div>
+</section>
+
+<section id="flow" style="background:var(--paper-deep)">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow">Enclave lifecycle</div>
+      <h2>One touch, many secrets</h2>
+    </div>
+    <div class="plate">
+      <div class="flow">
+        <div class="step"><div class="k">store --enclave</div><div class="d">P256 public key seals the value. No prompt.</div></div>
+        <div class="step"><div class="k">unlock</div><div class="d">One Touch ID authorizes the whole batch.</div></div>
+        <div class="step"><div class="k">fetch</div><div class="d">Every startup reads the session record. Silent.</div></div>
+      </div>
+      <p class="note">Sealing uses only the public key, which is why an agent can add a secret with no human present.
+      Opening runs the key agreement inside the Enclave and demands a live touch.</p>
+    </div>
+  </div>
+</section>
+
+<section id="install">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow">Install</div>
+      <h2>Clone, enable, store</h2>
+    </div>
+    <div class="grid two">
+      <div class="plate">
+        <h3>1 · Drop it in the plugins dir</h3>
+        <pre><span class="c"># into your profile's plugins directory</span>
+git clone https://github.com/iacker/\
+  hermes-keychain-secretsource \
+  ~/.hermes/plugins/keychain-secretsource</pre>
+        <h3>2 · Enable it in config.yaml</h3>
+        <pre><span class="c"># the key is `keychain` — the manifest name,</span>
+<span class="c"># not the directory name</span>
+plugins:
+  enabled:
+    - keychain
+
+secrets:
+  sources: [keychain]
+  keychain:
+    enabled: true</pre>
+      </div>
+      <div class="plate">
+        <h3>3 · Store secrets</h3>
+        <pre>hermes keychain store OPENROUTER_API_KEY
+hermes keychain store GITHUB_TOKEN --enclave
+
+<span class="c"># one auth opens every enclave session</span>
+hermes keychain unlock
+
+<span class="c"># per-secret state</span>
+hermes keychain status</pre>
+        <p class="muted">Storing registers the secret automatically — no hand-editing <code>config.yaml</code>. The Secure
+        Enclave helper compiles itself the first time you store an enclave secret; you need Xcode Command Line Tools
+        (<code>xcode-select --install</code>).</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="honest">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow">No dashboard theatre</div>
+      <h2>What it does not do</h2>
+    </div>
+    <div class="honest">
+      <h3>The honest limits</h3>
+      <p style="color:var(--ink-soft)">It is not a password manager, it does not sync anywhere, and it holds no website logins — only machine credentials.</p>
+      <p style="color:var(--ink-soft)"><strong>Plain mode</strong> does not protect against a process running as you while your session is unlocked, which is all day. What it fixes is the flat file. That is real hygiene, not an impenetrable wall.</p>
+      <p style="color:var(--ink-soft)"><strong>Enclave mode</strong> raises the bar — until you unlock. During the TTL window the plaintexts are as reachable as plain mode. That is the price of letting cron jobs start without a prompt. <code>hermes keychain lock</code> closes the window early; a short <code>session_ttl_seconds</code> narrows it.</p>
+      <p style="color:var(--ink-soft);margin-bottom:0"><strong>One design note.</strong> Biometric Keychain ACLs would have been the obvious route. They require the Data Protection keychain, which requires a paid Apple Developer entitlement an ad-hoc signed CLI cannot hold — it fails with <code>errSecMissingEntitlement</code>. Encrypting against an Enclave key, the way <code>age-plugin-se</code> does, gets the same guarantee without it.</p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="ornament" style="margin-bottom:22px"><span class="rule rev"></span><span class="lozenge"></span><span class="rule"></span></div>
+    <div class="motto">Veritas per fidem · Truth through trust</div>
+    <div>MIT licensed · <a href="https://github.com/iacker/hermes-keychain-secretsource">iacker/hermes-keychain-secretsource</a></div>
+  </div>
+</footer>
+
+<script>
+  // draw the crest laurel ticks — shapes not an image, same as the SwiftUI Crest
+  const crest = document.getElementById('crest');
+  for(let i=0;i<24;i++){
+    const t=document.createElement('div'); t.className='tick';
+    t.style.transform=`rotate(${i*15}deg)`; crest.appendChild(t);
+  }
+</script>
+</body>
+</html>
