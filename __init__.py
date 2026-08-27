@@ -9,9 +9,10 @@ Two modes, per-item or per-source:
   machine's Secure Enclave can decrypt, gated on user presence
   (Touch ID / login password / Apple Watch). Startup never prompts:
   ``hermes keychain unlock`` performs the single interactive
-  authentication out-of-band and caches the decrypted values in a
-  short-lived session file; ``fetch()`` silently reads that session and
-  reports AUTH_EXPIRED (with remediation) when it is absent or stale.
+  authentication out-of-band and caches the decrypted values in
+  short-lived, profile-scoped login Keychain entries; ``fetch()`` silently
+  reads those entries and reports AUTH_EXPIRED (with remediation) when they
+  are absent or stale.
 
 Config (``secrets.keychain`` in config.yaml)::
 

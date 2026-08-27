@@ -108,8 +108,10 @@ P256 pubkey ──encrypt──▶ Touch ID ──decrypt──▶ session recor
 - `encrypt` needs only the public key — **no prompt** to add secrets.
 - `unlock` authenticates **once** (a single LAContext for the whole
   batch), then caches plaintexts as TTL-bounded session records in the
-  login keychain — encrypted at rest by macOS, never written to disk as
-  plaintext, expired records self-delete.
+  login keychain. They are encrypted at rest by macOS, namespaced per Hermes
+  profile, never written to ordinary files, and expired records self-delete.
+  During that TTL, a process already running as your unlocked macOS user may
+  be able to read those records; `hermes keychain lock` clears them early.
 - `fetch()` (the Hermes startup path) only ever reads session records.
   Locked secrets are a warning (or `AUTH_EXPIRED` with a remediation
   hint when nothing is readable), never a blocking prompt: gateway,
@@ -149,7 +151,7 @@ sudo security add-generic-password -U -s hermes \
 
 ```
 hermes keychain setup                 setup walkthrough
-hermes keychain store <ENV> [--enclave] [--value V] [--service S] [--account A]
+hermes keychain store <ENV> [--enclave] [--service S] [--account A]
 hermes keychain unlock                one auth, open all enclave sessions
 hermes keychain lock                  clear sessions now
 hermes keychain status                per-secret state
@@ -182,7 +184,7 @@ HERMES_AGENT_SRC=~/.hermes/hermes-agent \
 ```
 
 Hermetic (no real keychain/enclave touched) and includes the upstream
-`SecretSourceConformance` kit. 26 tests.
+`SecretSourceConformance` kit. 29 tests.
 
 ## License
 

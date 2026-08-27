@@ -64,11 +64,14 @@ def _ensure_helper_built() -> Tuple[Optional[Path], str]:
         )
         if proc.returncode != 0:
             return None, f"helper build failed: {proc.stderr.strip()[:300]}"
-        subprocess.run(
+        signed = subprocess.run(
             ["/usr/bin/codesign", "-s", "-", "-f",
              "--identifier", "com.hermes.keychain-helper", str(out)],
-            capture_output=True, timeout=60,
+            capture_output=True, text=True, timeout=60,
         )
+        if signed.returncode != 0:
+            out.unlink(missing_ok=True)
+            return None, f"helper signing failed: {signed.stderr.strip()[:300]}"
     except Exception as exc:
         return None, f"helper build failed: {exc}"
     return out, ""
@@ -107,12 +110,13 @@ def _pubkey(key_blob: str) -> Tuple[Optional[str], str]:
 
 def cmd_store(args) -> int:
     env_name = args.env_name
+    if not kc.valid_env_name(env_name):
+        print(f"invalid environment variable name: {env_name!r}", file=sys.stderr)
+        return 2
     mode = "enclave" if args.enclave else "plain"
     home = _home_path()
 
-    value = args.value
-    if value is None:
-        value = getpass.getpass(f"Value for {env_name} (hidden): ")
+    value = getpass.getpass(f"Value for {env_name} (hidden): ")
     if not value:
         print("empty value, aborting", file=sys.stderr)
         return 1
@@ -198,15 +202,18 @@ def cmd_unlock(args) -> int:
 
     try:
         values: List[str] = json.loads((proc.stdout or b"").decode())
-        plaintexts = [base64.b64decode(v).decode("utf-8") for v in values]
-    except (ValueError, KeyError) as exc:
+        if not isinstance(values, list) or len(values) != len(targets):
+            raise ValueError("helper returned the wrong number of plaintexts")
+        plaintexts = [base64.b64decode(v, validate=True).decode("utf-8") for v in values]
+    except (ValueError, TypeError, UnicodeDecodeError) as exc:
         print(f"helper output unreadable: {exc}", file=sys.stderr)
         return 1
 
     ttl = kc.session_ttl(cfg)
     for env_name, value in zip(targets, plaintexts):
-        err = kc.session_write(env_name, value, ttl)
+        err = kc.session_write(home, env_name, value, ttl)
         if err:
+            kc.session_clear(home, targets)
             print(f"session write failed for {env_name}: {err}", file=sys.stderr)
             return 1
     hours = ttl / 3600
@@ -220,7 +227,7 @@ def cmd_lock(args) -> int:
     cfg = _load_cfg()
     items, _ = kc.parse_items(cfg)
     targets = [i["env"] for i in items if i["mode"] == "enclave"]
-    kc.session_clear(targets)
+    kc.session_clear(_home_path(), targets)
     print(f"cleared {len(targets)} unlock session(s)")
     return 0
 
@@ -244,7 +251,7 @@ def cmd_status(args) -> int:
             if not kc.ct_path(home, item["env"]).is_file():
                 state = "NO CIPHERTEXT — run `hermes keychain store … --enclave`"
             else:
-                value, err = kc.session_read(item["env"])
+                value, err = kc.session_read(home, item["env"])
                 state = "unlocked" if value else f"locked ({err})"
         print(f"  {item['env']:<28} {item['mode']:<8} {state}")
     for w in warnings:
@@ -255,11 +262,14 @@ def cmd_status(args) -> int:
 def cmd_delete(args) -> int:
     home = _home_path()
     env_name = args.env_name
+    if not kc.valid_env_name(env_name):
+        print(f"invalid environment variable name: {env_name!r}", file=sys.stderr)
+        return 2
     kc.kc_delete(args.service or kc.DEFAULT_SERVICE, args.account or env_name)
     ct = kc.ct_path(home, env_name)
     if ct.is_file():
         ct.unlink()
-    kc.session_clear([env_name])
+    kc.session_clear(home, [env_name])
     print(f"deleted {env_name} (keychain item, ciphertext, session)")
     return 0
 
@@ -295,7 +305,7 @@ def setup_cli_parser(parser) -> None:
 
     p = sub.add_parser("store", help="store a secret (plain or --enclave)")
     p.add_argument("env_name")
-    p.add_argument("--value", default=None, help="value (omit to prompt hidden)")
+
     p.add_argument("--enclave", action="store_true",
                    help="encrypt to the Secure Enclave key (auth-gated)")
     p.add_argument("--service", default=None)

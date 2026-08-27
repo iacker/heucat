@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import platform
-import shutil
 import subprocess
 import time
 from pathlib import Path
@@ -35,17 +35,24 @@ def secrets_dir(home_path: Path) -> Path:
     return state_dir(home_path) / "secrets"
 
 
+def valid_env_name(env_name: object) -> bool:
+    import re
+
+    return isinstance(env_name, str) and bool(
+        re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", env_name)
+    )
+
+
 def ct_path(home_path: Path, env_name: str) -> Path:
+    if not valid_env_name(env_name):
+        raise ValueError(f"invalid environment variable name: {env_name!r}")
     return secrets_dir(home_path) / f"{env_name}.ct"
 
 
 def helper_path() -> Optional[Path]:
-    """Locate the signed Swift helper (bundled build, then PATH)."""
+    """Return only the plugin-bundled helper, never a PATH substitute."""
     bundled = PLUGIN_DIR / "helper" / HELPER_NAME
-    if bundled.is_file():
-        return bundled
-    found = shutil.which(HELPER_NAME)
-    return Path(found) if found else None
+    return bundled if bundled.is_file() else None
 
 
 def run_cli(argv, *, timeout: float = 30.0, stdin_data: Optional[bytes] = None):
@@ -96,15 +103,18 @@ def kc_read(service: str, account: str, keychain: str = "") -> Tuple[Optional[st
 
 
 def kc_write(service: str, account: str, value: str, keychain: str = "") -> str:
-    """Upsert one generic password. Returns error string ('' on success)."""
+    """Upsert one generic password without exposing it in process argv."""
+    # Apple documents `-w <password>` as insecure. Bare `-w` prompts twice;
+    # feed both answers through stdin so process listings never reveal value.
     argv = [
         SECURITY_BIN, "add-generic-password", "-U",
-        "-s", service, "-a", account, "-w", value,
+        "-s", service, "-a", account, "-w",
     ]
     if keychain:
         argv.append(keychain)
     try:
-        proc = run_cli(argv)
+        encoded = value.encode("utf-8")
+        proc = run_cli(argv, stdin_data=encoded + b"\n" + encoded + b"\n")
     except (subprocess.TimeoutExpired, OSError) as exc:
         return f"security invocation failed: {exc}"
     if proc.returncode != 0:
@@ -136,14 +146,22 @@ def kc_delete(service: str, account: str, keychain: str = "") -> str:
 # inside this user's login session.
 
 
-def session_write(env_name: str, value: str, ttl_seconds: int) -> str:
+def session_account(home_path: Path, env_name: str) -> str:
+    """Namespace session items by Hermes home to isolate profiles."""
+    resolved = str(Path(home_path).expanduser().resolve())
+    profile_id = hashlib.sha256(resolved.encode()).hexdigest()[:16]
+    return f"{profile_id}:{env_name}"
+
+
+def session_write(home_path: Path, env_name: str, value: str, ttl_seconds: int) -> str:
     payload = json.dumps({"v": value, "exp": int(time.time()) + int(ttl_seconds)})
-    return kc_write(SESSION_SERVICE, env_name, payload)
+    return kc_write(SESSION_SERVICE, session_account(home_path, env_name), payload)
 
 
-def session_read(env_name: str) -> Tuple[Optional[str], str]:
+def session_read(home_path: Path, env_name: str) -> Tuple[Optional[str], str]:
     """Returns (value, error). Expired/absent -> (None, reason)."""
-    raw, err = kc_read(SESSION_SERVICE, env_name)
+    account = session_account(home_path, env_name)
+    raw, err = kc_read(SESSION_SERVICE, account)
     if raw is None:
         return None, "no unlock session"
     try:
@@ -153,16 +171,16 @@ def session_read(env_name: str) -> Tuple[Optional[str], str]:
     except (ValueError, KeyError, TypeError):
         return None, "corrupt session record"
     if time.time() >= exp:
-        kc_delete(SESSION_SERVICE, env_name)
+        kc_delete(SESSION_SERVICE, account)
         return None, "unlock session expired"
     if not isinstance(value, str):
         return None, "corrupt session record"
     return value, ""
 
 
-def session_clear(env_names: List[str]) -> None:
+def session_clear(home_path: Path, env_names: List[str]) -> None:
     for name in env_names:
-        kc_delete(SESSION_SERVICE, name)
+        kc_delete(SESSION_SERVICE, session_account(home_path, name))
 
 
 # -- config parsing -----------------------------------------------------------

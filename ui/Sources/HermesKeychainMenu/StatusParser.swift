@@ -35,10 +35,12 @@ struct KeychainStatus: Equatable {
                 let fields = line.trimmingCharacters(in: .whitespaces)
                     .split(whereSeparator: { $0.isWhitespace })
                 guard fields.count >= 3 else { continue }
+                let mode = String(fields[1])
+                guard mode == "plain" || mode == "enclave" else { continue }
                 status.secrets.append(
                     SecretStatus(
                         name: String(fields[0]),
-                        mode: String(fields[1]),
+                        mode: mode,
                         state: fields.dropFirst(2).map(String.init).joined(separator: " ")
                     )
                 )

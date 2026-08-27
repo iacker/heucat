@@ -1,5 +1,5 @@
 name: keychain
-version: 0.1.0
+version: 0.2.0
 description: >-
   Apple Keychain secret source for Hermes. Plain mode reads generic passwords
   via /usr/bin/security (login or System keychain, headless-friendly).

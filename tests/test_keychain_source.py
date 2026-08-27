@@ -113,7 +113,7 @@ class TestEnclaveMode:
                             else os.path.__dict__["exists"](p))
 
     def test_unlocked_session_provides_secret(self, source, tmp_path, monkeypatch):
-        monkeypatch.setattr(kc, "session_read", lambda env: ("tok-123", ""))
+        monkeypatch.setattr(kc, "session_read", lambda home, env: ("tok-123", ""))
         cfg = {"enabled": True, "items": [{"env": "GH_TOKEN", "mode": "enclave"}]}
         result = source.fetch(cfg, tmp_path)
         assert result.ok
@@ -122,7 +122,7 @@ class TestEnclaveMode:
     def test_locked_session_is_auth_expired_never_prompt(self, source, tmp_path,
                                                          monkeypatch):
         monkeypatch.setattr(kc, "session_read",
-                            lambda env: (None, "no unlock session"))
+                            lambda home, env: (None, "no unlock session"))
         cfg = {"enabled": True, "items": [{"env": "GH_TOKEN", "mode": "enclave"}]}
         result = source.fetch(cfg, tmp_path)
         assert not result.ok
@@ -133,7 +133,7 @@ class TestEnclaveMode:
                                                     monkeypatch):
         monkeypatch.setattr(kc, "kc_read", lambda s, a, k="": ("plain-v", ""))
         monkeypatch.setattr(kc, "session_read",
-                            lambda env: (None, "unlock session expired"))
+                            lambda home, env: (None, "unlock session expired"))
         cfg = {
             "enabled": True,
             "accounts": ["PLAIN_KEY"],
@@ -191,6 +191,11 @@ class TestConfigParsing:
         assert kc.session_ttl({"session_ttl_seconds": -5}) == kc.DEFAULT_SESSION_TTL
         assert kc.session_ttl({"session_ttl_seconds": 60}) == 60
 
+    def test_ciphertext_path_rejects_traversal(self, tmp_path):
+        with pytest.raises(ValueError):
+            kc.ct_path(tmp_path, "../../outside")
+        assert kc.ct_path(tmp_path, "VALID_NAME").parent == tmp_path / "keychain" / "secrets"
+
 
 class TestNoPromptGuarantee:
     """The startup path must never spawn anything that can block on a prompt."""
@@ -202,7 +207,7 @@ class TestNoPromptGuarantee:
         called = []
         monkeypatch.setattr(kc, "helper_path",
                             lambda: called.append(True) or None)
-        monkeypatch.setattr(kc, "session_read", lambda env: (None, "locked"))
+        monkeypatch.setattr(kc, "session_read", lambda home, env: (None, "locked"))
         monkeypatch.setattr(kc, "kc_read", lambda s, a, k="": (None, "x"))
         KeychainSource().fetch(
             {"enabled": True,
@@ -229,3 +234,30 @@ class TestNoPromptGuarantee:
         monkeypatch.setattr(sp, "run", fake_run)
         kc.run_cli(["/bin/echo", "x"])
         assert captured.get("stdin") == sp.DEVNULL
+
+    def test_keychain_write_never_puts_secret_in_argv(self, monkeypatch):
+        captured = {}
+
+        class P:
+            returncode = 0
+            stdout = b""
+            stderr = b""
+
+        def fake_run(argv, **kwargs):
+            captured["argv"] = argv
+            captured.update(kwargs)
+            return P()
+
+        monkeypatch.setattr(kc, "run_cli", fake_run)
+        secret = "sensitive-value-123"
+        assert kc.kc_write("svc", "account", secret) == ""
+        assert secret not in captured["argv"]
+        assert captured["stdin_data"] == (secret + "\n" + secret + "\n").encode()
+
+    def test_session_accounts_are_isolated_by_profile(self, tmp_path):
+        profile_a = tmp_path / "profiles" / "a"
+        profile_b = tmp_path / "profiles" / "b"
+        assert kc.session_account(profile_a, "GITHUB_TOKEN") != kc.session_account(
+            profile_b, "GITHUB_TOKEN"
+        )
+        assert kc.session_account(profile_a, "GITHUB_TOKEN").endswith(":GITHUB_TOKEN")

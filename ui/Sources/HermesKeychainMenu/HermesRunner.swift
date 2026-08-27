@@ -39,7 +39,11 @@ struct HermesRunner {
             process.standardOutput = stdout
             process.standardError = stderr
 
-            var environment = ProcessInfo.processInfo.environment
+            let parentEnvironment = ProcessInfo.processInfo.environment
+            var environment: [String: String] = [:]
+            for key in ["PATH", "HOME", "TMPDIR", "LANG", "LC_ALL"] {
+                environment[key] = parentEnvironment[key]
+            }
             environment["HERMES_HOME"] = NSString(string: hermesHome).expandingTildeInPath
             environment["NO_COLOR"] = "1"
             process.environment = environment

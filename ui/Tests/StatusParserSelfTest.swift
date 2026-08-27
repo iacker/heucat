@@ -4,6 +4,8 @@ import Foundation
 struct StatusParserSelfTest {
     static func main() {
         let output = """
+          HashiCorp Vault: this startup warning is not a secret row
+          Apple Keychain / Secure Enclave: another startup warning
         source enabled : True
         helper binary  : /tmp/helper
         enclave key    : present

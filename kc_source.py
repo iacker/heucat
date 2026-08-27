@@ -80,7 +80,7 @@ class KeychainSource(SecretSource):
                 else:
                     secrets[item["env"]] = value
             else:  # enclave
-                value, err = kc.session_read(item["env"])
+                value, err = kc.session_read(home_path, item["env"])
                 if value is None:
                     expired.append((item["env"], err))
                 else:
