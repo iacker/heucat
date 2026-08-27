@@ -1,8 +1,30 @@
 import AppKit
 import SwiftUI
 
+/// Keeps the app behaving like a normal document-less Mac app: clicking the Dock
+/// icon after closing the window brings it back, rather than leaving a running
+/// process with no way to reach it.
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if !flag {
+            for window in sender.windows where window.canBecomeMain {
+                window.makeKeyAndOrderFront(nil)
+                break
+            }
+        }
+        sender.activate(ignoringOtherApps: true)
+        return true
+    }
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        NSApp.setActivationPolicy(.regular)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+}
+
 @main
 struct HermesKeychainMenuApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var model = AppModel()
 
     var body: some Scene {
@@ -11,7 +33,7 @@ struct HermesKeychainMenuApp: App {
                 .environmentObject(model)
                 .task { await exportDiagnosticCaptureIfRequested() }
         }
-        .defaultSize(width: 1040, height: 700)
+        .defaultSize(width: 1240, height: 780)
         .windowResizability(.contentMinSize)
         .commands {
             CommandGroup(after: .newItem) {
