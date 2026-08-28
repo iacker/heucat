@@ -24,6 +24,25 @@ struct StatusParserSelfTest {
         precondition(status.secrets[1].isUnlocked)
         precondition(!status.secrets[2].isUnlocked)
         precondition(status.secrets[2].state == "locked (no unlock session)")
+
+        // chthonios status: the real table, a header rule then data rows
+        let unmanaged = """
+        PROFILE        STATE     BACKEND    INTEGRITY  SEALED AT
+        ──────────────────────────────────────────────
+         default        ◈ unmanaged
+        """
+        precondition(ChthoniosStatus.parse(unmanaged, ok: true) == .unmanaged(["default"]))
+
+        let sealed = """
+        PROFILE        STATE     BACKEND    INTEGRITY  SEALED AT
+        ──────────────────────────────────────────────
+         redteam        ◈ sealed    age        ok         2026-08-28
+         default        ◈ unmanaged
+        """
+        precondition(ChthoniosStatus.parse(sealed, ok: true) == .sealed(["redteam"]))
+        precondition(ChthoniosStatus.parse("", ok: false) == .failed)
+        precondition(ChthoniosStatus.parse("no table here", ok: true) == ChthoniosStatus.none)
+
         print("StatusParser self-test: OK")
     }
 }

@@ -132,13 +132,7 @@ final class AppModel: ObservableObject {
         do {
             let result = try await HermesRunner(binaryPath: path, hermesHome: hermesHome).run(["status"])
             chthoniosAvailable = result.exitCode == 0
-            if result.output.contains("unmanaged") {
-                chthoniosSummary = "Arès is active and not sealed"
-            } else if result.output.contains("sealed") {
-                chthoniosSummary = "A sealed profile is present"
-            } else {
-                chthoniosSummary = result.exitCode == 0 ? "Chthonios ready" : "Chthonios check failed"
-            }
+            chthoniosSummary = ChthoniosStatus.parse(result.output, ok: result.exitCode == 0).label
         } catch {
             chthoniosAvailable = false
             chthoniosSummary = error.localizedDescription

@@ -248,6 +248,20 @@ final class Loc: ObservableObject {
         "msg.removing": "Removing",
         "msg.removed": "removed",
         "msg.saved": "saved securely",
+
+        "profiles.engineOn": "Engine available",
+        "profiles.engineOff": "Engine unavailable",
+        "profiles.checkFailed": "Chthonios status check failed",
+        "profiles.noProfile": "No profile is managed by Chthonios",
+        "profiles.sealed": "Sealed profile:",
+        "profiles.unmanaged": "Active, not sealed:",
+        "profiles.boundary.enclave": "The Secure Enclave protects individual secrets while Hermes runs.",
+        "profiles.boundary.chthonios": "Chthonios seals a whole profile so it is unusable at rest.",
+        "profiles.boundary.yubikey": "YubiKey unsealing needs the physical key, its PIN and a touch.",
+        "diag.enclaveKey": "Secure Enclave key",
+        "diag.present": "Present",
+        "diag.missing": "Missing",
+        "diag.lastStatus": "Last status",
     ]
 
     static let french: [String: String] = [
@@ -454,6 +468,20 @@ final class Loc: ObservableObject {
         "msg.removing": "Suppression de",
         "msg.removed": "supprimé",
         "msg.saved": "enregistré en sécurité",
+
+        "profiles.engineOn": "Moteur disponible",
+        "profiles.engineOff": "Moteur indisponible",
+        "profiles.checkFailed": "La vérification Chthonios a échoué",
+        "profiles.noProfile": "Aucun profil géré par Chthonios",
+        "profiles.sealed": "Profil scellé :",
+        "profiles.unmanaged": "Actif, non scellé :",
+        "profiles.boundary.enclave": "La Secure Enclave protège chaque secret pendant que Hermes tourne.",
+        "profiles.boundary.chthonios": "Chthonios scelle un profil entier pour le rendre inutilisable au repos.",
+        "profiles.boundary.yubikey": "Le descellement YubiKey réclame la clé physique, son code PIN et un contact.",
+        "diag.enclaveKey": "Clé Secure Enclave",
+        "diag.present": "Présente",
+        "diag.missing": "Absente",
+        "diag.lastStatus": "Dernier état",
     ]
 }
 

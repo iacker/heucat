@@ -728,7 +728,7 @@ struct SealedProfilesView: View {
                             .foregroundStyle(model.chthoniosAvailable ? Theme.lapis : Theme.amber)
                     }
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("Chthonios")
+                        Text(verbatim: "Chthonios")
                             .font(Theme.serif(19, weight: .semibold))
                             .foregroundStyle(Theme.ink)
                         Text(model.chthoniosSummary)
@@ -738,7 +738,7 @@ struct SealedProfilesView: View {
                             Circle()
                                 .fill(model.chthoniosAvailable ? Theme.verdigris : Theme.amber)
                                 .frame(width: 5, height: 5)
-                            Text(model.chthoniosAvailable ? "Engine available" : "Engine unavailable")
+                            Text(model.chthoniosAvailable ? L("profiles.engineOn") : L("profiles.engineOff"))
                                 .font(.system(size: 11))
                                 .foregroundStyle(model.chthoniosAvailable ? Theme.verdigris : Theme.amber)
                         }
@@ -750,11 +750,11 @@ struct SealedProfilesView: View {
             }
             TitledPlate(L("profiles.boundary")) {
                 VStack(alignment: .leading, spacing: 12) {
-                    boundaryRow("cpu", "Secure Enclave protects individual secrets while Hermes runs.")
+                    boundaryRow("cpu", L("profiles.boundary.enclave"))
                     Rectangle().fill(Theme.hairline).frame(height: 0.7)
-                    boundaryRow("archivebox.fill", "Chthonios seals a whole profile so it is unusable at rest.")
+                    boundaryRow("archivebox.fill", L("profiles.boundary.chthonios"))
                     Rectangle().fill(Theme.hairline).frame(height: 0.7)
-                    boundaryRow("key.horizontal.fill", "YubiKey unsealing needs the physical key, its PIN and a touch.")
+                    boundaryRow("key.horizontal.fill", L("profiles.boundary.yubikey"))
                 }
             }
             Text(L("profiles.separate"))
@@ -790,15 +790,15 @@ struct DiagnosticsView: View {
             pageHeader(L("diag.title"), L("diag.subtitle2"))
             TitledPlate(L("diag.runtime")) {
                 VStack(spacing: 0) {
-                    diagRow("Hermes CLI", model.hermesBinary)
+                    diagRow(L("diag.hermesCli"), model.hermesBinary)
                     diagDivider
-                    diagRow("Profile home", model.hermesHome)
+                    diagRow(L("diag.hermesHome"), model.hermesHome)
                     diagDivider
-                    diagRow("Helper binary", model.status.helperPath)
+                    diagRow(L("diag.helper"), model.status.helperPath)
                     diagDivider
-                    diagRow("Secure Enclave key", model.status.enclaveKeyPresent ? "Present" : "Missing")
+                    diagRow(L("diag.enclaveKey"), model.status.enclaveKeyPresent ? L("diag.present") : L("diag.missing"))
                     diagDivider
-                    diagRow("Last status", model.message)
+                    diagRow(L("diag.lastStatus"), model.message)
                 }
             }
             HStack(spacing: 11) {

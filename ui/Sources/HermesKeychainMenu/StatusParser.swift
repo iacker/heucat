@@ -54,3 +54,35 @@ struct KeychainStatus: Equatable {
         return String(line.dropFirst(prefix.count)).trimmingCharacters(in: .whitespaces)
     }
 }
+
+/// Result of `chthonios status`, as a case plus the profile names it names.
+///
+/// Kept out of AppModel so the self-test can compile this file alone, without
+/// SwiftUI. The view turns a case into translated text; this file stays pure.
+enum ChthoniosStatus: Equatable {
+    case failed
+    case none
+    case sealed([String])
+    case unmanaged([String])
+
+    /// The table is `PROFILE STATE BACKEND INTEGRITY SEALED AT` under a rule,
+    /// so data rows are whatever follows the rule line.
+    ///
+    /// ponytail: substring match on the state word, not a column parser. The
+    /// CLI is ours and the states are a closed set; widen only if a state ever
+    /// needs its own wording.
+    static func parse(_ output: String, ok: Bool) -> ChthoniosStatus {
+        guard ok else { return .failed }
+        let rows = output
+            .split(separator: "\n")
+            .drop { !$0.contains("\u{2500}") }
+            .dropFirst()
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+        guard !rows.isEmpty else { return .none }
+
+        let name = { (row: String) in row.split(separator: " ").first.map(String.init) }
+        let sealed = rows.filter { $0.contains("sealed") }.compactMap(name)
+        return sealed.isEmpty ? .unmanaged(rows.compactMap(name)) : .sealed(sealed)
+    }
+}
