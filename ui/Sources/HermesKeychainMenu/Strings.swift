@@ -188,6 +188,8 @@ final class Loc: ObservableObject {
         "profiles.sealFido2Explain": "Sealing to your YubiKey needs no key and no touch — only the public recipient. Unsealing will need the key, its PIN and a touch.",
         "profiles.noKeyEnrolled": "No YubiKey enrolled for this profile — passphrase only.",
         "profiles.copyEnroll": "Copy enroll command",
+        "profiles.reuseKeyFrom": "Your YubiKey is already enrolled for %@ — the same key can open this profile.",
+        "profiles.useSameKey": "Use the same key",
         "profiles.notInstalled": "Chthonios is not installed",
 
         // Diagnostics
@@ -277,6 +279,7 @@ final class Loc: ObservableObject {
         "msg.locking": "Locking",
         "msg.verifying": "Verifying",
         "msg.waitingTouch": "Touch your YubiKey to unseal",
+        "msg.enrolling": "Binding the key to",
         "msg.removing": "Removing",
         "msg.removed": "removed",
         "msg.saved": "saved securely",
@@ -441,6 +444,8 @@ final class Loc: ObservableObject {
         "profiles.sealFido2Explain": "Sceller sur votre YubiKey ne demande ni la clé ni de toucher — seulement le destinataire public. Le descellement exigera la clé, son PIN et un toucher.",
         "profiles.noKeyEnrolled": "Aucune YubiKey enrôlée pour ce profil — phrase secrète uniquement.",
         "profiles.copyEnroll": "Copier la commande d'enrôlement",
+        "profiles.reuseKeyFrom": "Votre YubiKey est déjà enrôlée pour %@ — la même clé peut ouvrir ce profil.",
+        "profiles.useSameKey": "Utiliser la même clé",
         "profiles.notInstalled": "Chthonios n'est pas installé",
 
         // Diagnostics
@@ -530,6 +535,7 @@ final class Loc: ObservableObject {
         "msg.locking": "Verrouillage de",
         "msg.verifying": "Vérification de",
         "msg.waitingTouch": "Touchez votre YubiKey pour desceller",
+        "msg.enrolling": "Liaison de la clé à",
         "msg.removing": "Suppression de",
         "msg.removed": "supprimé",
         "msg.saved": "enregistré en sécurité",

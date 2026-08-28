@@ -179,6 +179,19 @@ final class AppModel: ObservableObject {
         "chthonios enroll-key \(profile)"
     }
 
+    /// A profile that already has a key enrolled, to copy the binding from.
+    /// One YubiKey opens any number of profiles, so a first enrollment in the
+    /// terminal is enough for every later profile.
+    var profileWithEnrolledKey: String? {
+        profiles.map(\.name).first { isEnrolledForFIDO2($0) }
+    }
+
+    /// Bind `profile` to the key already enrolled for `source`. No touch.
+    func reuseKey(for profile: ProfileStatus, from source: String) async {
+        _ = await runChthonios(["enroll-key", profile.name, "--from-profile", source],
+                               activity: L("msg.enrolling") + " \(profile.name)…")
+    }
+
     /// Run one chthonios subcommand, feeding stdin when a secret is needed.
     /// `seal`/`unseal` read the passphrase from stdin (getpass falls back to it
     /// when there is no TTY); `lock`/`verify` need nothing. `seal` asks twice,

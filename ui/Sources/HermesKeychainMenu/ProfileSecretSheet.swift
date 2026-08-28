@@ -89,22 +89,42 @@ struct ProfileSecretSheet: View {
                     .pickerStyle(.segmented)
                     .labelsHidden()
                 } else if action == .seal {
-                    // No key enrolled: say so, and name the one command that fixes it.
-                    HStack(spacing: 8) {
-                        Image(systemName: "key.horizontal")
-                            .foregroundStyle(Theme.inkFaint)
-                        Text(L("profiles.noKeyEnrolled"))
+                    // No key here yet. If another profile has one, the same
+                    // physical key can cover this one too — one click, no touch.
+                    if let source = model.profileWithEnrolledKey {
+                        HStack(spacing: 8) {
+                            Image(systemName: "key.horizontal")
+                                .foregroundStyle(Theme.amber)
+                            Text(L("profiles.reuseKeyFrom").replacingOccurrences(
+                                of: "%@", with: source))
+                                .font(.caption)
+                                .foregroundStyle(Theme.inkSoft)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Spacer()
+                            Button(L("profiles.useSameKey")) {
+                                Task { await model.reuseKey(for: profile, from: source) }
+                            }
+                            .buttonStyle(.link)
                             .font(.caption)
-                            .foregroundStyle(Theme.inkSoft)
-                            .fixedSize(horizontal: false, vertical: true)
-                        Spacer()
-                        Button(L("profiles.copyEnroll")) {
-                            NSPasteboard.general.clearContents()
-                            NSPasteboard.general.setString(model.enrollCommand(for: profile.name),
-                                                           forType: .string)
+                            .disabled(model.isBusy)
                         }
-                        .buttonStyle(.link)
-                        .font(.caption)
+                    } else {
+                        HStack(spacing: 8) {
+                            Image(systemName: "key.horizontal")
+                                .foregroundStyle(Theme.inkFaint)
+                            Text(L("profiles.noKeyEnrolled"))
+                                .font(.caption)
+                                .foregroundStyle(Theme.inkSoft)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Spacer()
+                            Button(L("profiles.copyEnroll")) {
+                                NSPasteboard.general.clearContents()
+                                NSPasteboard.general.setString(
+                                    model.enrollCommand(for: profile.name), forType: .string)
+                            }
+                            .buttonStyle(.link)
+                            .font(.caption)
+                        }
                     }
                 }
 
