@@ -10,7 +10,7 @@ The ones that matter sit behind Touch ID, encrypted with a key that never leaves
 
 [![macOS](https://img.shields.io/badge/macOS-12%2B-1B1D24?style=flat-square&logo=apple&logoColor=white)](https://www.apple.com/macos/)
 [![Apple silicon](https://img.shields.io/badge/Secure%20Enclave-Apple%20silicon-1F8B68?style=flat-square)](https://support.apple.com/guide/security/secure-enclave-sec59b0b31ff/web)
-[![Tests](https://img.shields.io/badge/tests-38%20passing-1F8B68?style=flat-square)](#tests)
+[![Tests](https://img.shields.io/badge/tests-40%20passing-1F8B68?style=flat-square)](#tests)
 [![UI](https://img.shields.io/badge/UI-SwiftUI%20·%20FR%20%2F%20EN-514FB3?style=flat-square&logo=swift&logoColor=white)](#desktop-app)
 [![License](https://img.shields.io/badge/license-MIT-676B76?style=flat-square)](#license)
 
@@ -54,7 +54,7 @@ process.
 | [CLI](#cli) | the six commands |
 | [Desktop app](#desktop-app) | optional SwiftUI front end, FR and EN |
 | [Security model](#security-model) | what each mode stops, and what it does not |
-| [Tests](#tests) | 38, and how to run them |
+| [Tests](#tests) | 40, and how to run them |
 
 ## What it actually does
 
@@ -173,39 +173,11 @@ hermes keychain status
 
 Three moments matter, and only one of them ever asks you for anything.
 
-```mermaid
-sequenceDiagram
-    autonumber
-    actor You
-    participant CLI as hermes keychain
-    participant SE as Secure Enclave
-    participant Disk as Ciphertext 0600
-    participant KC as Session records
-
-    rect rgb(244, 241, 234)
-    Note over You,Disk: Storing, no prompt
-    You->>CLI: store NAME --enclave
-    CLI->>SE: generate P256 key, once
-    SE-->>CLI: public half only
-    CLI->>Disk: ChaChaPoly ciphertext
-    end
-
-    rect rgb(232, 240, 236)
-    Note over You,KC: Unlocking, one prompt for the whole batch
-    You->>CLI: unlock
-    CLI->>SE: decrypt every secret
-    SE-->>You: Touch ID
-    You-->>SE: fingerprint
-    SE-->>CLI: plaintexts
-    CLI->>KC: cache, TTL bounded
-    end
-
-    rect rgb(244, 241, 234)
-    Note over CLI,KC: Every Hermes startup, silent
-    CLI->>KC: read session records
-    KC-->>CLI: values, or a fast failure
-    end
-```
+| Moment | What runs | Does it prompt? |
+|---|---|---|
+| **Storing** `store NAME --enclave` | the Enclave generates a P256 key once and hands back only its public half; the value is written as ChaChaPoly ciphertext, mode 0600 | **No.** Encryption only needs the public half |
+| **Unlocking** `unlock` | the Enclave decrypts every secret at once; plaintexts are cached as TTL-bounded session records | **Once**, one Touch ID for the whole batch |
+| **Every Hermes startup** | `fetch()` reads session records and returns values, or fails fast | **No**, ever — startup must stay non-interactive |
 
 Encryption only needs the public half, so adding a secret never prompts.
 Decryption is the only step that needs the private key, and the Enclave releases
@@ -288,10 +260,32 @@ Settings without restarting. A How it works page explains the Enclave chain in
 plain language, for the times you have to justify this to someone who does not
 read Swift.
 
-It also has a Sealed Profiles section that reports Chthonios state next to the
-Keychain state. The two crypto engines stay separate on purpose. Only the
-dashboard is shared, so you can see runtime secrets and sealed profiles in one
-window without one system pretending to be the other.
+It also has a Sealed Profiles section that drives [hermes-chthonios](https://github.com/iacker/hermes-chthonios)
+end to end: seal a profile behind a passphrase or a YubiKey, unseal it, lock it,
+verify the ciphertext. The page opens on the numbers — how many profiles are
+sealed, open or unmanaged, and which one this app is driving — rather than on a
+description of the engine behind it.
+
+The two crypto engines stay separate on purpose. Only the dashboard is shared,
+so you can see runtime secrets and sealed profiles in one window without one
+system pretending to be the other.
+
+**One YubiKey covers as many profiles as you like.** The FIDO2 credential lives
+on the token; a profile's recipient and identity files only address it. So once
+any profile is enrolled, the seal sheet offers to bind the next one to the same
+key in a click, with no touch and no ceremony. Enrolling the *first* key is
+still a terminal step (`chthonios enroll-key <profile>`), because it is an
+interactive ceremony and a failed attempt costs you one of the token's limited
+PIN retries.
+
+Failures are read from the CLI's exit codes, never from its message text, so a
+wrong passphrase stays distinguishable from a missing profile even in the
+French build. `ui/scripts/check-exit-codes.py` fails the build if the Swift
+enum and `chthonios/cli.py` ever disagree.
+
+<div align="center">
+  <img src="docs/assets/sealed-profiles.png" alt="The Sealed Profiles page: counters for sealed, open and unmanaged profiles, the profile the app is driving, and one row per profile with the actions its state allows." width="100%">
+</div>
 
 ```bash
 cd ui
@@ -319,27 +313,16 @@ else means a Developer ID signature and notarization.
 What each mode actually stops, and what it does not. Read the last column before
 you decide a key is safe.
 
-```mermaid
-flowchart TD
-    A["Attacker reads your disk<br/>backup, cloud sync, stolen Mac"] --> B{"Stored how?"}
-    B -->|".env file"| C["Plaintext, game over"]
-    B -->|"plain mode"| D["Keychain encrypted at rest<br/>needs your login session"]
-    B -->|"enclave mode"| E["Ciphertext only<br/>useless off this Mac"]
+| Threat | `.env` file | `plain` mode | `enclave` mode |
+|---|---|---|---|
+| Someone reads your disk — backup, cloud sync, stolen Mac | **Plaintext. Game over.** | Encrypted at rest, needs your login session | **Ciphertext only, useless off this Mac** |
+| A process running as you — npm postinstall, browser extension — *before* any unlock | Readable | Readable | **Unreadable** |
+| The same process, *after* `unlock`, within the TTL | Readable | Readable | **Readable — this is the tradeoff** |
 
-    F["Process running as you<br/>npm postinstall, browser extension"] --> G{"Session open?"}
-    G -->|"no unlock yet"| H["Enclave secrets unreadable"]
-    G -->|"unlocked, within TTL"| I["Readable, same as plain<br/>this is the tradeoff"]
-
-    style C fill:#b5443a,color:#fff
-    style E fill:#1f6f5c,color:#fff
-    style H fill:#1f6f5c,color:#fff
-    style I fill:#c98a2b,color:#fff
-    style D fill:#f4f1ea
-```
-
-The amber box is the honest part. Once you unlock, a process running as you can
+The last row is the honest part. Once you unlock, a process running as you can
 read those values for the length of the TTL. That is the price of never
-prompting a cron job. `hermes keychain lock` closes it early.
+prompting a cron job. `hermes keychain lock` closes it early, and a short
+`session_ttl_seconds` narrows it.
 
 `fetch()` never raises, never prompts, and never writes to `os.environ`. Hermes
 owns precedence and application. This plugin only returns a result.
@@ -380,18 +363,20 @@ HERMES_AGENT_SRC=~/.hermes/hermes-agent \
   uv run --with pytest --with pyyaml --with rich python -m pytest tests/ -v
 ```
 
-38 tests. Most are hermetic, so no real keychain or enclave is touched, and they
+40 tests. Most are hermetic, so no real keychain or enclave is touched, and they
 include the upstream `SecretSourceConformance` kit. The long-value regression
 tests in `tests/test_long_values.py` do touch a scratch Keychain item, because
 the bug they pin only reproduces against the real `security` binary.
 
-The Swift side has its own check, plus a translation guard that fails if the
-French and English tables drift apart:
+The Swift side has its own check, plus two guards that fail on drift — one for
+the FR/EN string tables, one for the exit codes the UI reads from Chthonios:
 
 ```bash
 cd ui && ./scripts/test.sh
-python3 ui/scripts/check-strings.py
 ```
+
+That script runs the StatusParser self-test, `check-exit-codes.py` and
+`check-strings.py` in one go.
 
 ## License
 

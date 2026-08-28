@@ -175,6 +175,7 @@
       <a class="btn primary" href="https://github.com/iacker/heucat">View on GitHub</a>
       <a class="btn quiet" href="#install">Install</a>
       <a class="btn quiet" href="#apple">Apple components</a>
+      <a class="btn quiet" href="#app">Desktop app</a>
     </div>
   </div>
 </header>
@@ -309,6 +310,37 @@
       </div>
       <p class="note">Sealing uses only the public key, which is why an agent can add a secret with no human present.
       Opening runs the key agreement inside the Enclave and demands a live touch.</p>
+    </div>
+  </div>
+</section>
+
+<section id="app">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow">Desktop app</div>
+      <h2>The whole thing, in a window</h2>
+    </div>
+    <div class="plate">
+      <p>An optional SwiftUI app ships in <code>ui/</code>. It shells out to the same CLI and pipes secret
+      values over stdin, so nothing sensitive ever lands in process arguments — and it holds
+      <strong>no security logic of its own</strong>. One code path to audit, not two.</p>
+      <p>It also drives <a href="https://github.com/iacker/hermes-chthonios">Chthonios</a> end to end:
+      seal a profile behind a passphrase or a YubiKey, unseal it, lock it, verify it. The page opens on the
+      numbers — how many profiles are sealed, open or unmanaged, and which one the app is driving.</p>
+      <div class="flow">
+        <div class="step"><div class="k">seal</div><div class="d">Passphrase, or your YubiKey. No touch needed to seal.</div></div>
+        <div class="step"><div class="k">unseal</div><div class="d">PIN and a touch, asked for in the window.</div></div>
+        <div class="step"><div class="k">lock</div><div class="d">Shreds the plaintext, keeps the ciphertext.</div></div>
+      </div>
+      <p class="note">One YubiKey covers as many profiles as you like: the credential lives on the token, so
+      the app offers to bind the next profile to the same key in a click. Enrolling the first key stays a
+      terminal ceremony — a mistyped PIN spends one of the token's eight retries.</p>
+      <div style="margin:20px 0 6px">
+        <img src="assets/sealed-profiles.png" alt="The Sealed Profiles page: counters for sealed, open and unmanaged profiles, the profile the app is driving, and one row per profile with the actions its state allows." style="width:100%;border-radius:10px;border:.7px solid var(--hairline)">
+      </div>
+      <p>The interface is French and English, switchable live. Failures are read from the CLI's exit codes
+      rather than its message text, so a wrong passphrase stays distinguishable from a missing profile in
+      either language.</p>
     </div>
   </div>
 </section>
