@@ -7,6 +7,9 @@ struct MainWindowView: View {
     /// empty), so snapshots would otherwise show blank content.
     var flattenForSnapshot = false
     @EnvironmentObject private var model: AppModel
+    /// Observing Loc makes the whole window redraw the moment the language
+    /// changes, which is what makes the picker feel instant.
+    @ObservedObject private var loc = Loc.shared
     var autoRefresh = true
 
     var body: some View {
@@ -34,12 +37,12 @@ struct MainWindowView: View {
         .background(MarbleBackground())
         .frame(minWidth: 1060, minHeight: 700)
         .sheet(isPresented: $model.showingAddSecret) { AddSecretView() }
-        .alert("Remove this secret?", isPresented: Binding(
+        .alert(L("secrets.confirmRemove"), isPresented: Binding(
             get: { model.pendingDeletion != nil },
             set: { if !$0 { model.pendingDeletion = nil } }
         ), presenting: model.pendingDeletion) { secret in
-            Button("Cancel", role: .cancel) { model.pendingDeletion = nil }
-            Button("Remove", role: .destructive) {
+            Button(L("secrets.cancel"), role: .cancel) { model.pendingDeletion = nil }
+            Button(L("secrets.remove"), role: .destructive) {
                 model.pendingDeletion = nil
                 Task { await model.delete(secret) }
             }
@@ -55,7 +58,7 @@ struct MainWindowView: View {
         VStack(spacing: 0) {
             VStack(spacing: 9) {
                 Crest(size: 74)
-                Text("HEUCAT KEYCHAIN")
+                Text(L("app.wordmark"))
                     .font(Theme.serif(11, weight: .medium))
                     .tracking(2.2)
                     .foregroundStyle(Theme.ink)
@@ -85,7 +88,7 @@ struct MainWindowView: View {
                         .font(.system(size: 12))
                         .foregroundStyle(model.status.sourceEnabled ? Theme.lapis : Theme.amber)
                     VStack(alignment: .leading, spacing: 1) {
-                        Text(model.status.sourceEnabled ? "All systems secure" : "Needs attention")
+                        Text(model.status.sourceEnabled ? L("app.allSecure") : L("app.needsAttention"))
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(Theme.ink)
                         Text(model.lastUpdatedCaption)
@@ -129,7 +132,7 @@ struct MainWindowView: View {
                     .font(.system(size: 13))
                     .frame(width: 17)
                     .foregroundStyle(selected ? Color.white : Theme.inkSoft)
-                Text(section.rawValue)
+                Text(section.title)
                     .font(.system(size: 13, weight: selected ? .semibold : .regular))
                     .foregroundStyle(selected ? Color.white : Theme.inkSoft)
                 Spacer()
@@ -152,13 +155,26 @@ struct MainWindowView: View {
 
     private var titleBar: some View {
         HStack(spacing: 14) {
-            Text("HEUCAT Keychain")
+            Text(L("app.title"))
                 .font(Theme.serif(15, weight: .medium))
                 .foregroundStyle(Theme.ink)
             Spacer()
             if model.isBusy {
                 ProgressView().controlSize(.small)
             }
+            Button {
+                loc.language = loc.language == .french ? .english : .french
+            } label: {
+                Text(loc.language == .french ? "FR" : "EN")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(Theme.lapis)
+                    .frame(width: 30, height: 30)
+                    .background(Circle().fill(Theme.card))
+                    .overlay(Circle().stroke(Theme.hairline, lineWidth: 0.7))
+            }
+            .buttonStyle(.plain)
+            .help(L("settings.language"))
+
             Button {
                 Task { await model.refresh() }
             } label: {
@@ -171,12 +187,12 @@ struct MainWindowView: View {
             }
             .buttonStyle(.plain)
             .disabled(model.isBusy)
-            .help("Refresh protection status")
+            .help(L("app.refresh.help"))
 
             HStack(spacing: 9) {
                 Crest(size: 30)
                 VStack(alignment: .leading, spacing: 0) {
-                    Text("Hermes Agent")
+                    Text(L("app.agent"))
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(Theme.ink)
                     Text(model.profileName)
@@ -196,7 +212,7 @@ struct MainWindowView: View {
             Image(systemName: "lock.fill")
                 .font(.system(size: 9))
                 .foregroundStyle(Theme.inkFaint)
-            Text("Hardware-backed. Values never leave this Mac.")
+            Text(L("overview.hardwareBacked"))
                 .font(Theme.serif(11))
                 .foregroundStyle(Theme.inkSoft)
             Ornament(width: 74)
@@ -242,7 +258,7 @@ struct OverviewView: View {
         Plate(padding: 0) {
             HStack(spacing: 0) {
                 VStack(alignment: .leading, spacing: 0) {
-                    Eyebrow(text: "Runtime secret source")
+                    Eyebrow(text: L("overview.eyebrow"))
                     Text("HEUCAT")
                         .font(Theme.display(46, weight: .regular))
                         .foregroundStyle(Theme.ink)
@@ -254,7 +270,7 @@ struct OverviewView: View {
                         .foregroundStyle(Theme.lapis)
                         .tracking(1.5)
                         .fixedSize()
-                    Text("Between worlds,\nshe keeps the keys.")
+                    Text(L("overview.motto"))
                         .font(Theme.serif(15))
                         .foregroundStyle(Theme.inkSoft)
                         .lineSpacing(4)
@@ -268,7 +284,7 @@ struct OverviewView: View {
                         } label: {
                             HStack(spacing: 7) {
                                 Image(systemName: "lock.fill").font(.system(size: 11))
-                                Text("View secrets")
+                                Text(L("overview.viewSecrets"))
                                 Image(systemName: "chevron.right").font(.system(size: 10, weight: .semibold))
                             }
                         }
@@ -279,7 +295,7 @@ struct OverviewView: View {
                         } label: {
                             HStack(spacing: 7) {
                                 Image(systemName: "plus").font(.system(size: 11, weight: .semibold))
-                                Text("Add secret")
+                                Text(L("overview.addSecret"))
                             }
                         }
                         .buttonStyle(QuietButtonStyle())
@@ -337,39 +353,39 @@ struct OverviewView: View {
         HStack(spacing: 16) {
             StatTile(icon: "key.fill",
                      value: "\(model.status.configuredCount)",
-                     label: "Secrets",
-                     caption: "under management")
+                     label: L("stat.secrets"),
+                     caption: L("stat.secrets.caption"))
             StatTile(icon: "cpu",
                      value: "\(model.enclaveCount)",
-                     label: "Enclave",
-                     caption: "hardware-bound",
+                     label: L("stat.enclave"),
+                     caption: L("stat.enclave.caption"),
                      tint: Theme.verdigris)
             StatTile(icon: "lock.open.fill",
                      value: "\(model.readableCount)",
-                     label: "Readable",
-                     caption: model.readableCount == 0 ? "session closed" : "session open",
+                     label: L("stat.readable"),
+                     caption: L(model.readableCount == 0 ? "stat.readable.closed" : "stat.readable.open"),
                      tint: model.readableCount == 0 ? Theme.amber : Theme.verdigris)
             StatTile(icon: "checkmark.shield.fill",
                      value: model.healthLabel,
-                     label: "Health",
-                     caption: model.status.sourceEnabled ? "source active" : "source off")
+                     label: L("stat.health"),
+                     caption: L(model.status.sourceEnabled ? "stat.health.on" : "stat.health.off"))
         }
     }
 
     private var keyOverview: some View {
-        TitledPlate("Key overview") {
+        TitledPlate(L("overview.keyOverview")) {
             HStack(alignment: .center, spacing: 22) {
                 VStack(alignment: .leading, spacing: 1) {
                     Text("\(model.status.configuredCount)")
                         .font(Theme.display(44, weight: .regular))
                         .foregroundStyle(Theme.ink)
-                    Eyebrow(text: "Total keys")
+                    Eyebrow(text: L("overview.totalKeys"))
                 }
                 Rectangle().fill(Theme.hairline).frame(width: 0.7, height: 58)
                 VStack(alignment: .leading, spacing: 9) {
-                    countRow("key.fill", "Keychain", model.plainCount, Theme.lapis)
-                    countRow("cpu", "Enclave", model.enclaveCount, Theme.verdigris)
-                    countRow("lock.open.fill", "Readable", model.readableCount, Theme.inkSoft)
+                    countRow("key.fill", L("overview.keychain"), model.plainCount, Theme.lapis)
+                    countRow("cpu", L("overview.enclave"), model.enclaveCount, Theme.verdigris)
+                    countRow("lock.open.fill", L("overview.readable"), model.readableCount, Theme.inkSoft)
                 }
                 Spacer()
             }
@@ -386,7 +402,7 @@ struct OverviewView: View {
     }
 
     private var modeBreakdown: some View {
-        TitledPlate("Recent secrets") {
+        TitledPlate(L("overview.recentSecrets")) {
             if model.status.secrets.isEmpty {
                 EmptySecretsView(compact: true)
             } else {
@@ -405,7 +421,7 @@ struct OverviewView: View {
                                 .foregroundStyle(Theme.ink)
                                 .lineLimit(1)
                             Spacer(minLength: 10)
-                            Text(secret.isUnlocked ? "readable" : secret.state)
+                            Text(secret.isUnlocked ? L("state.readable") : LState(secret.state))
                                 .font(.system(size: 10))
                                 .foregroundStyle(secret.isUnlocked ? Theme.verdigris : Theme.amber)
                         }
@@ -419,7 +435,7 @@ struct OverviewView: View {
         VStack(spacing: 16) {
             Plate {
                 VStack(spacing: 11) {
-                    Text("Agent status")
+                    Text(L("overview.agentStatus"))
                         .font(Theme.serif(15, weight: .semibold))
                         .foregroundStyle(Theme.ink)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -433,7 +449,7 @@ struct OverviewView: View {
                             .offset(y: -2)
                     }
                     .padding(.top, 3)
-                    Eyebrow(text: model.status.sourceEnabled ? "Protected" : "Attention",
+                    Eyebrow(text: L(model.status.sourceEnabled ? "overview.protected" : "overview.exposed"),
                             tint: model.status.sourceEnabled ? Theme.lapis : Theme.amber)
                     Text(model.statusHeadline)
                         .font(Theme.serif(12))
@@ -445,26 +461,26 @@ struct OverviewView: View {
                 .frame(maxWidth: .infinity)
             }
 
-            TitledPlate(title: "Enclave sessions") {
+            TitledPlate(title: L("overview.enclaveSessions")) {
                 VStack(spacing: 10) {
                     sessionRow(
                         icon: "cpu",
-                        title: "Secure Enclave",
-                        detail: model.status.enclaveKeyPresent ? "Key present on this Mac" : "No key generated",
+                        title: L("secrets.modeEnclave"),
+                        detail: L(model.status.enclaveKeyPresent ? "overview.keyPresent" : "overview.noKey"),
                         active: model.status.enclaveKeyPresent
                     )
                     Rectangle().fill(Theme.hairline).frame(height: 0.7)
                     sessionRow(
                         icon: "touchid",
-                        title: "Unlocked secrets",
-                        detail: model.enclaveCount == 0 ? "No enclave secrets stored" : "\(model.readableEnclaveCount) of \(model.enclaveCount) readable",
+                        title: L("overview.unlockedSecrets"),
+                        detail: model.enclaveCount == 0 ? L("sessions.none") : L("overview.nReadable", model.readableEnclaveCount, model.enclaveCount),
                         active: model.enclaveCount > 0 && model.readableEnclaveCount > 0
                     )
                     Button {
                         model.selectedSection = .sessions
                     } label: {
                         HStack {
-                            Text("Manage sessions")
+                            Text(L("overview.manageSessions"))
                                 .font(.system(size: 12))
                                 .foregroundStyle(Theme.inkSoft)
                             Spacer()
@@ -482,7 +498,7 @@ struct OverviewView: View {
                     .foregroundStyle(Theme.lapis)
             }
 
-            TitledPlate("Vault health") {
+            TitledPlate(L("overview.vaultHealth")) {
                 VStack(spacing: 11) {
                     HealthRing(value: model.healthFraction, label: model.healthLabel)
                         .padding(.vertical, 4)
@@ -511,7 +527,7 @@ struct OverviewView: View {
             Spacer(minLength: 6)
             HStack(spacing: 4) {
                 Circle().fill(active ? Theme.verdigris : Theme.inkFaint).frame(width: 5, height: 5)
-                Text(active ? "Active" : "Idle")
+                Text(L(active ? "overview.active" : "overview.idle"))
                     .font(.system(size: 10))
                     .foregroundStyle(active ? Theme.verdigris : Theme.inkFaint)
             }
@@ -532,13 +548,13 @@ struct SecretsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            pageHeader("Secrets", "References are managed here. Values are never revealed.")
+            pageHeader(L("secrets.title"), L("secrets.subtitle"))
             HStack(spacing: 11) {
                 HStack(spacing: 7) {
                     Image(systemName: "magnifyingglass")
                         .font(.system(size: 11))
                         .foregroundStyle(Theme.inkFaint)
-                    TextField("Search", text: $query)
+                    TextField(L("secrets.search"), text: $query)
                         .textFieldStyle(.plain)
                         .font(.system(size: 12))
                 }
@@ -554,7 +570,7 @@ struct SecretsView: View {
                 } label: {
                     HStack(spacing: 7) {
                         Image(systemName: "plus").font(.system(size: 11, weight: .semibold))
-                        Text("Add secret")
+                        Text(L("overview.addSecret"))
                     }
                 }
                 .buttonStyle(LapisButtonStyle())
@@ -581,7 +597,7 @@ struct SessionsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
-            pageHeader("Sessions", "Temporary access to Secure Enclave secrets.")
+            pageHeader(L("sessions.title"), L("sessions.subtitle"))
             Plate {
                 HStack(spacing: 22) {
                     ZStack {
@@ -591,10 +607,10 @@ struct SessionsView: View {
                             .foregroundStyle(Theme.lapis)
                     }
                     VStack(alignment: .leading, spacing: 7) {
-                        Text("Authenticate once, work securely")
+                        Text(L("sessions.headline"))
                             .font(Theme.serif(19, weight: .semibold))
                             .foregroundStyle(Theme.ink)
-                        Text("Touch ID opens a time-limited session covering every Enclave secret at once. Hermes startup stays silent, so gateway and cron processes never block on a prompt.")
+                        Text(L("sessions.body"))
                             .font(Theme.serif(13))
                             .foregroundStyle(Theme.inkSoft)
                             .fixedSize(horizontal: false, vertical: true)
@@ -608,7 +624,7 @@ struct SessionsView: View {
                 } label: {
                     HStack(spacing: 7) {
                         Image(systemName: "touchid").font(.system(size: 12))
-                        Text("Unlock with Touch ID")
+                        Text(L("sessions.unlock"))
                     }
                 }
                 .buttonStyle(LapisButtonStyle())
@@ -619,20 +635,20 @@ struct SessionsView: View {
                 } label: {
                     HStack(spacing: 7) {
                         Image(systemName: "lock.fill").font(.system(size: 11))
-                        Text("Lock all sessions")
+                        Text(L("sessions.lockAll"))
                     }
                 }
                 .buttonStyle(QuietButtonStyle())
                 .disabled(model.isBusy || model.enclaveCount == 0)
             }
             if model.enclaveCount == 0 {
-                Label("No Enclave secrets are stored yet, so there is nothing to unlock. Add one from the Secrets page and pick Secure Enclave.",
+                Label(L("sessions.none"),
                       systemImage: "info.circle")
                     .font(Theme.serif(12))
                     .foregroundStyle(Theme.inkSoft)
             }
             Ornament(width: 200)
-            Text("While a session is open the values sit in TTL-bounded macOS Keychain records, readable by processes running as you. Lock them when you are done rather than relying on the timeout.")
+            Text(L("sessions.tradeoff"))
                 .font(Theme.serif(12))
                 .foregroundStyle(Theme.inkSoft)
                 .fixedSize(horizontal: false, vertical: true)
@@ -650,7 +666,7 @@ struct SealedProfilesView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
-            pageHeader("Sealed profiles", "Hardware-gated protection for a whole Hermes profile.")
+            pageHeader(L("profiles.title"), L("profiles.subtitle2"))
             Plate {
                 HStack(spacing: 20) {
                     ZStack {
@@ -678,11 +694,11 @@ struct SealedProfilesView: View {
                         }
                     }
                     Spacer()
-                    Button("Refresh") { Task { await model.refreshChthonios() } }
+                    Button(L("app.refresh")) { Task { await model.refreshChthonios() } }
                         .buttonStyle(QuietButtonStyle())
                 }
             }
-            TitledPlate("Security boundary") {
+            TitledPlate(L("profiles.boundary")) {
                 VStack(alignment: .leading, spacing: 12) {
                     boundaryRow("cpu", "Secure Enclave protects individual secrets while Hermes runs.")
                     Rectangle().fill(Theme.hairline).frame(height: 0.7)
@@ -691,7 +707,7 @@ struct SealedProfilesView: View {
                     boundaryRow("key.horizontal.fill", "YubiKey unsealing needs the physical key, its PIN and a touch.")
                 }
             }
-            Text("The two crypto engines stay separate on purpose. Only this dashboard is shared, so neither system has to pretend to be the other. Unsealing is done by you in a terminal, never by this app.")
+            Text(L("profiles.separate"))
                 .font(Theme.serif(12))
                 .foregroundStyle(Theme.inkSoft)
                 .fixedSize(horizontal: false, vertical: true)
@@ -721,8 +737,8 @@ struct DiagnosticsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
-            pageHeader("Diagnostics", "Local paths and runtime health. No secret values appear here.")
-            TitledPlate("Runtime") {
+            pageHeader(L("diag.title"), L("diag.subtitle2"))
+            TitledPlate(L("diag.runtime")) {
                 VStack(spacing: 0) {
                     diagRow("Hermes CLI", model.hermesBinary)
                     diagDivider
@@ -736,11 +752,11 @@ struct DiagnosticsView: View {
                 }
             }
             HStack(spacing: 11) {
-                Button("Open keychain folder") { model.openKeychainFolder() }
+                Button(L("diag.openFolder")) { model.openKeychainFolder() }
                     .buttonStyle(QuietButtonStyle())
-                SettingsLink { Text("Settings") }
+                SettingsLink { Text(L("app.settings")) }
                     .buttonStyle(QuietButtonStyle())
-                Button("View source") { model.openRepository() }
+                Button(L("diag.viewSource")) { model.openRepository() }
                     .buttonStyle(QuietButtonStyle())
             }
             Spacer()
@@ -770,6 +786,8 @@ struct DiagnosticsView: View {
 // MARK: - How it works
 
 struct HowItWorksView: View {
+    @ObservedObject private var loc = Loc.shared
+
     private struct Stage: Identifiable {
         let id = UUID()
         let icon: String
@@ -777,25 +795,19 @@ struct HowItWorksView: View {
         let body: String
     }
 
-    private let stages: [Stage] = [
-        Stage(icon: "cpu",
-              title: "A key is born inside the Enclave",
-              body: "The first time you store an Enclave secret, a P256 private key is generated inside the Secure Enclave, the isolated chip on Apple Silicon. That key can never be exported. Not by you, not by malware, not by macOS. Only its public half comes out."),
-        Stage(icon: "lock.doc",
-              title: "Your secret is sealed with ChaChaPoly",
-              body: "The value is encrypted with the public key using ECDH plus ChaChaPoly. Because encryption only needs the public half, adding a secret never asks for Touch ID. The ciphertext lands in a 0600 file under your profile, useless on any other Mac."),
-        Stage(icon: "touchid",
-              title: "Touch ID unlocks the whole batch at once",
-              body: "Decryption is the only step that needs the private key, and the Enclave releases it only after a live human authentication. One fingerprint opens every Enclave secret together, then caches them as short-lived session records."),
-        Stage(icon: "bolt.horizontal",
-              title: "Hermes reads them without ever prompting",
-              body: "At startup Hermes reads only those session records. A locked secret fails fast instead of hanging, so gateway and cron processes never block waiting for a fingerprint no one is there to give."),
-    ]
+    /// Built at render time so switching language re-reads the tables.
+    private var stages: [Stage] {
+        (1...4).map { i in
+            Stage(icon: ["cpu", "lock.doc", "touchid", "bolt.horizontal"][i - 1],
+                  title: L("how.\(i).title"),
+                  body: L("how.\(i).body"))
+        }
+    }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                pageHeader("How it works", "What actually protects your keys, from silicon up.")
+                pageHeader(L("how.title"), L("how.subtitle"))
                 ForEach(Array(stages.enumerated()), id: \.element.id) { index, stage in
                     Plate {
                         HStack(alignment: .top, spacing: 16) {
@@ -806,7 +818,7 @@ struct HowItWorksView: View {
                                     .foregroundStyle(Theme.lapis)
                             }
                             VStack(alignment: .leading, spacing: 6) {
-                                Eyebrow(text: "Step \(index + 1)")
+                                Eyebrow(text: L("how.step") + " \(index + 1)")
                                 Text(stage.title)
                                     .font(Theme.serif(17, weight: .semibold))
                                     .foregroundStyle(Theme.ink)
@@ -821,8 +833,8 @@ struct HowItWorksView: View {
                 }
                 Plate {
                     VStack(alignment: .leading, spacing: 7) {
-                        Eyebrow(text: "The honest tradeoff", tint: Theme.amber)
-                        Text("While a session is open, the plaintext sits in TTL-bounded records readable by anything running as you. That is the price of never prompting. Lock the session when you are done, or keep the TTL short.")
+                        Eyebrow(text: L("how.tradeoff.title"), tint: Theme.amber)
+                        Text(L("how.tradeoff.body"))
                             .font(Theme.serif(13))
                             .foregroundStyle(Theme.inkSoft)
                             .fixedSize(horizontal: false, vertical: true)
@@ -867,7 +879,7 @@ struct SecretRow: View {
                     Text(secret.name)
                         .font(.system(size: 12, weight: .medium, design: .monospaced))
                         .foregroundStyle(Theme.ink)
-                    Text(secret.mode == "enclave" ? "Secure Enclave" : "Apple Keychain")
+                    Text(L(secret.mode == "enclave" ? "secrets.modeEnclave" : "secrets.modeKeychain"))
                         .font(.system(size: 10))
                         .foregroundStyle(Theme.inkFaint)
                 }
@@ -885,32 +897,32 @@ struct SecretRow: View {
                     Circle()
                         .fill(secret.isUnlocked ? Theme.verdigris : Theme.amber)
                         .frame(width: 5, height: 5)
-                    Text(secret.isUnlocked ? "Available" : secret.state.capitalized)
+                    Text(secret.isUnlocked ? L("secrets.available") : LState(secret.state).capitalized)
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(secret.isUnlocked ? Theme.verdigris : Theme.amber)
                 }
 
                 if showActions {
                     Menu {
-                        Button("Copy variable name", systemImage: "doc.on.doc") {
+                        Button(L("secrets.copyName"), systemImage: "doc.on.doc") {
                             NSPasteboard.general.clearContents()
                             NSPasteboard.general.setString(secret.name, forType: .string)
-                            model.message = "Copied \(secret.name)"
+                            model.message = L("msg.copied") + " \(secret.name)"
                         }
-                        Button("Update value…", systemImage: "arrow.triangle.2.circlepath") {
+                        Button(L("secrets.updateValue"), systemImage: "arrow.triangle.2.circlepath") {
                             model.prefillName = secret.name
                             model.showingAddSecret = true
                         }
                         if secret.mode == "plain" {
-                            Button("Migrate to Secure Enclave", systemImage: "cpu") {
+                            Button(L("secrets.migrate"), systemImage: "cpu") {
                                 Task { await model.migrateToEnclave(secret) }
                             }
                         }
-                        Button("Test connection", systemImage: "bolt.horizontal") {
+                        Button(L("secrets.test"), systemImage: "bolt.horizontal") {
                             Task { await model.testSecret(secret) }
                         }
                         Divider()
-                        Button("Remove", systemImage: "trash", role: .destructive) {
+                        Button(L("secrets.remove"), systemImage: "trash", role: .destructive) {
                             model.pendingDeletion = secret
                         }
                     } label: {
@@ -936,10 +948,10 @@ struct EmptySecretsView: View {
             Image(systemName: "key.horizontal")
                 .font(.system(size: compact ? 24 : 38, weight: .ultraLight))
                 .foregroundStyle(Theme.inkFaint)
-            Text("No secrets yet")
+            Text(L("secrets.empty.title"))
                 .font(Theme.serif(compact ? 14 : 18, weight: .semibold))
                 .foregroundStyle(Theme.ink)
-            Text("Add a credential and the plaintext copy stops being the source of truth.")
+            Text(L("secrets.empty.body"))
                 .font(Theme.serif(12))
                 .foregroundStyle(Theme.inkSoft)
                 .multilineTextAlignment(.center)
@@ -949,7 +961,7 @@ struct EmptySecretsView: View {
             } label: {
                 HStack(spacing: 7) {
                     Image(systemName: "plus").font(.system(size: 11, weight: .semibold))
-                    Text("Add secret")
+                    Text(L("overview.addSecret"))
                 }
             }
             .buttonStyle(LapisButtonStyle())

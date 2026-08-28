@@ -10,6 +10,19 @@ enum AppSection: String, CaseIterable, Identifiable {
     case howitworks = "How it works"
     case diagnostics = "Diagnostics"
     var id: String { rawValue }
+
+    /// Translated label for the sidebar.
+    @MainActor var title: String {
+        switch self {
+        case .overview: L("nav.overview")
+        case .secrets: L("nav.secrets")
+        case .sessions: L("nav.sessions")
+        case .profiles: L("nav.profiles")
+        case .howitworks: L("nav.howitworks")
+        case .diagnostics: L("nav.diagnostics")
+        }
+    }
+
     var icon: String {
         switch self {
         case .overview: "square.grid.2x2"
@@ -30,7 +43,7 @@ final class AppModel: ObservableObject {
 
     @Published var status = KeychainStatus()
     @Published var isBusy = false
-    @Published var message = "Ready"
+    @Published var message = L("msg.ready")
     @Published var lastUpdated: Date?
     @Published var selectedSection: AppSection? = .overview
     @Published var showingAddSecret = false
@@ -70,23 +83,23 @@ final class AppModel: ObservableObject {
     }
 
     var healthCaption: String {
-        if !status.sourceEnabled { return "The secret source is disabled in this profile." }
-        if status.secrets.isEmpty { return "No secrets stored yet." }
-        if readableCount == status.secrets.count { return "All \(status.secrets.count) secrets are readable." }
-        return "\(status.secrets.count - readableCount) of \(status.secrets.count) locked. Unlock to restore access."
+        if !status.sourceEnabled { return L("overview.sourceDisabledCaption") }
+        if status.secrets.isEmpty { return L("overview.noSecretsYet") }
+        if readableCount == status.secrets.count { return L("overview.allReadable", status.secrets.count) }
+        return L("overview.nLocked", status.secrets.count - readableCount, status.secrets.count)
     }
 
     var statusHeadline: String {
-        if !status.sourceEnabled { return "The Keychain source is not active for this profile." }
-        if status.secrets.isEmpty { return "The source is connected. No secrets are stored yet." }
-        return "Serving \(status.secrets.count) secret\(status.secrets.count == 1 ? "" : "s") from the Keychain."
+        if !status.sourceEnabled { return L("overview.sourceOff") }
+        if status.secrets.isEmpty { return L("overview.noneStored") }
+        return status.secrets.count == 1 ? L("overview.serving1") : L("overview.servingN", status.secrets.count)
     }
 
     var lastUpdatedCaption: String {
-        guard let lastUpdated else { return "Not checked yet" }
+        guard let lastUpdated else { return L("app.notChecked") }
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .short
-        return "Verified " + formatter.localizedString(for: lastUpdated, relativeTo: Date())
+        return L("app.verified") + " " + formatter.localizedString(for: lastUpdated, relativeTo: Date())
     }
 
     var iconName: String {
@@ -100,9 +113,9 @@ final class AppModel: ObservableObject {
     }
 
     func refresh() async {
-        await perform("Refreshing status…", command: ["keychain", "status"]) { result in
+        await perform(L("msg.refreshing"), command: ["keychain", "status"]) { result in
             self.status = KeychainStatus.parse(result.output)
-            self.message = result.exitCode == 0 ? "Protection status is up to date" : "Status failed (\(result.exitCode))"
+            self.message = result.exitCode == 0 ? L("msg.statusOk") : "Status \(result.exitCode)"
             self.lastUpdated = Date()
         }
         await refreshChthonios()
@@ -112,7 +125,7 @@ final class AppModel: ObservableObject {
         let path = NSString(string: chthoniosBinary).expandingTildeInPath
         guard FileManager.default.isExecutableFile(atPath: path) else {
             chthoniosAvailable = false
-            chthoniosSummary = "Chthonios is not installed"
+            chthoniosSummary = L("profiles.notInstalled")
             return
         }
         do {
@@ -132,15 +145,15 @@ final class AppModel: ObservableObject {
     }
 
     func unlock() async {
-        await perform("Waiting for Touch ID…", command: ["keychain", "unlock"]) { result in
-            self.message = result.exitCode == 0 ? "Secure session opened" : self.lastLine(result.output)
+        await perform(L("msg.waitingTouchID"), command: ["keychain", "unlock"]) { result in
+            self.message = result.exitCode == 0 ? L("msg.sessionOpened") : self.lastLine(result.output)
         }
         await refresh()
     }
 
     func lock() async {
-        await perform("Closing secure sessions…", command: ["keychain", "lock"]) { result in
-            self.message = result.exitCode == 0 ? "All sessions closed" : self.lastLine(result.output)
+        await perform(L("msg.closingSessions"), command: ["keychain", "lock"]) { result in
+            self.message = result.exitCode == 0 ? L("msg.sessionsClosed") : self.lastLine(result.output)
         }
         await refresh()
     }
@@ -151,24 +164,24 @@ final class AppModel: ObservableObject {
         if !service.isEmpty { command += ["--service", service] }
         if !account.isEmpty { command += ["--account", account] }
         var succeeded = false
-        await perform("Encrypting and saving…", command: command, stdinData: Data(value.utf8)) { result in
+        await perform(L("msg.saving"), command: command, stdinData: Data(value.utf8)) { result in
             succeeded = result.exitCode == 0
-            self.message = succeeded ? "\(name) saved securely" : self.lastLine(result.output)
+            self.message = succeeded ? "\(name) " + L("msg.saved") : self.lastLine(result.output)
         }
         if succeeded { await refresh() }
         return succeeded
     }
 
     func delete(_ secret: SecretStatus) async {
-        await perform("Removing \(secret.name)…", command: ["keychain", "delete", secret.name]) { result in
-            self.message = result.exitCode == 0 ? "\(secret.name) removed" : self.lastLine(result.output)
+        await perform(L("msg.removing") + " \(secret.name)…", command: ["keychain", "delete", secret.name]) { result in
+            self.message = result.exitCode == 0 ? "\(secret.name) " + L("msg.removed") : self.lastLine(result.output)
         }
         await refresh()
     }
 
     func migrateToEnclave(_ secret: SecretStatus) async {
-        await perform("Migrating \(secret.name) to the Enclave…", command: ["keychain", "migrate", secret.name]) { result in
-            self.message = result.exitCode == 0 ? "\(secret.name) is now Enclave-backed" : self.lastLine(result.output)
+        await perform("\(secret.name) — " + L("msg.migrating"), command: ["keychain", "migrate", secret.name]) { result in
+            self.message = result.exitCode == 0 ? "\(secret.name) " + L("msg.migrated") : self.lastLine(result.output)
         }
         await refresh()
     }

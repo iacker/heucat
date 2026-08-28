@@ -2,6 +2,7 @@ import SwiftUI
 
 struct MenuContentView: View {
     @EnvironmentObject private var model: AppModel
+    @ObservedObject private var loc = Loc.shared
     var autoRefresh = true
 
     var body: some View {
@@ -12,9 +13,9 @@ struct MenuContentView: View {
 
             if model.status.secrets.isEmpty {
                 ContentUnavailableView(
-                    "No secrets configured",
+                    L("menu.noSecrets"),
                     systemImage: "key",
-                    description: Text("Use `hermes keychain store` to add one safely.")
+                    description: Text(L("overview.useCliHint"))
                 )
                 .frame(minHeight: 130)
             } else {
@@ -41,9 +42,9 @@ struct MenuContentView: View {
                 .font(.title2)
                 .foregroundStyle(model.status.sourceEnabled ? .green : .secondary)
             VStack(alignment: .leading, spacing: 2) {
-                Text("HEUCAT Keychain")
+                Text(L("app.title"))
                     .font(.headline)
-                Text("Apple Keychain + Secure Enclave")
+                Text(L("overview.appleStack"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -54,10 +55,10 @@ struct MenuContentView: View {
 
     private var summary: some View {
         HStack {
-            Label(model.status.sourceEnabled ? "Source enabled" : "Source disabled",
+            Label(L(model.status.sourceEnabled ? "menu.sourceEnabled" : "menu.sourceDisabled"),
                   systemImage: model.status.sourceEnabled ? "checkmark.circle.fill" : "xmark.circle")
             Spacer()
-            Label(model.status.enclaveKeyPresent ? "Enclave ready" : "No enclave key",
+            Label(L(model.status.enclaveKeyPresent ? "menu.enclaveReady" : "menu.noEnclaveKey"),
                   systemImage: "cpu")
         }
         .font(.caption)
@@ -89,18 +90,18 @@ struct MenuContentView: View {
 
     private var controls: some View {
         HStack {
-            Button("Unlock", systemImage: "touchid") {
+            Button(L("menu.unlock"), systemImage: "touchid") {
                 Task { await model.unlock() }
             }
             .buttonStyle(.borderedProminent)
             .disabled(model.isBusy || model.status.configuredCount == 0)
 
-            Button("Lock", systemImage: "lock.fill") {
+            Button(L("menu.lock"), systemImage: "lock.fill") {
                 Task { await model.lock() }
             }
             .disabled(model.isBusy || model.status.configuredCount == 0)
 
-            Button("Refresh", systemImage: "arrow.clockwise") {
+            Button(L("app.refresh"), systemImage: "arrow.clockwise") {
                 Task { await model.refresh() }
             }
             .disabled(model.isBusy)
@@ -108,10 +109,10 @@ struct MenuContentView: View {
             Spacer()
 
             Menu {
-                SettingsLink { Text("Settings…") }
-                Button("Open GitHub") { model.openRepository() }
+                SettingsLink { Text(L("app.settings")) }
+                Button(L("diag.openGitHub")) { model.openRepository() }
                 Divider()
-                Button("Quit") { NSApplication.shared.terminate(nil) }
+                Button(L("app.quit")) { NSApplication.shared.terminate(nil) }
             } label: {
                 Image(systemName: "ellipsis.circle")
             }

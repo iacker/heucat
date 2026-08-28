@@ -2,6 +2,7 @@ import SwiftUI
 
 struct AddSecretView: View {
     @EnvironmentObject private var model: AppModel
+    @ObservedObject private var loc = Loc.shared
     @Environment(\.dismiss) private var dismiss
     @State private var name = ""
     @State private var value = ""
@@ -15,7 +16,7 @@ struct AddSecretView: View {
     private var isUpdate: Bool { !model.prefillName.isEmpty }
 
     enum Protection: String, CaseIterable, Identifiable {
-        case enclave = "Secure Enclave"
+        case enclave = "Secure Enclave"  // raw value is an id, label comes from Loc
         case keychain = "Apple Keychain"
         var id: String { rawValue }
     }
@@ -31,51 +32,51 @@ struct AddSecretView: View {
             HStack(spacing: 12) {
                 ZStack { RoundedRectangle(cornerRadius: 12).fill(Color.accentColor.gradient); Image(systemName: "key.fill").foregroundStyle(.white).font(.title2) }.frame(width: 48, height: 48)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(isUpdate ? "Update a secret" : "Add a secret").font(.title2.weight(.semibold))
+                    Text(L(isUpdate ? "add.title.update" : "add.title")).font(.title2.weight(.semibold))
                     Text(isUpdate
-                         ? "Enter a new value for \(model.prefillName). The old value is overwritten."
-                         : "The value is sent directly to protected storage and never displayed again.").font(.callout).foregroundStyle(.secondary)
+                         ? L("add.updateHint").replacingOccurrences(of: "%@", with: model.prefillName)
+                         : L("add.subtitle")).font(.callout).foregroundStyle(.secondary)
                 }
                 Spacer()
             }.padding(24)
             Divider()
             Form {
-                Section("Identity") {
-                    TextField("Environment variable", text: $name, prompt: Text("OPENROUTER_API_KEY"))
+                Section(L("add.identity")) {
+                    TextField(L("add.envVar"), text: $name, prompt: Text("OPENROUTER_API_KEY"))
                         .textContentType(.none).font(.system(.body, design: .monospaced))
                         .disabled(isUpdate)
-                    if !name.isEmpty && !validName { Text("Use letters, numbers and underscores; start with a letter or underscore.").font(.caption).foregroundStyle(.red) }
+                    if !name.isEmpty && !validName { Text(L("add.nameRule")).font(.caption).foregroundStyle(.red) }
                 }
-                Section("Protection") {
-                    Picker("Storage mode", selection: $protection) {
+                Section(L("overview.protection")) {
+                    Picker(L("add.protection"), selection: $protection) {
                         ForEach(Protection.allCases) { option in Text(option.rawValue).tag(option) }
                     }.pickerStyle(.segmented)
                     HStack(alignment: .top, spacing: 10) {
                         Image(systemName: protection == .enclave ? "touchid" : "key.fill").foregroundStyle(.tint)
                         Text(protection == .enclave
-                             ? "Recommended. Hardware-bound encryption with Touch ID or macOS authentication."
-                             : "Stored as a generic password in the macOS login Keychain.")
+                             ? L("add.enclaveHint")
+                             : L("add.keychainHint"))
                             .font(.caption).foregroundStyle(.secondary)
                     }
                 }
-                Section("Secret value") {
-                    SecureField("Value", text: $value)
-                    SecureField("Confirm value", text: $confirmation)
-                    if !confirmation.isEmpty && value != confirmation { Text("Values do not match.").font(.caption).foregroundStyle(.red) }
+                Section(L("add.value")) {
+                    SecureField(L("add.valueField"), text: $value)
+                    SecureField(L("add.confirm"), text: $confirmation)
+                    if !confirmation.isEmpty && value != confirmation { Text(L("add.mismatch")).font(.caption).foregroundStyle(.red) }
                 }
-                DisclosureGroup("Advanced options", isExpanded: $showAdvanced) {
-                    TextField("Service (optional)", text: $service)
-                    TextField("Account (optional)", text: $account)
+                DisclosureGroup(L("add.advanced"), isExpanded: $showAdvanced) {
+                    TextField(L("add.service"), text: $service)
+                    TextField(L("add.account"), text: $account)
                 }
                 if !error.isEmpty { Text(error).foregroundStyle(.red).font(.caption) }
             }.formStyle(.grouped).scrollContentBackground(.hidden).padding(.horizontal, 10)
             Divider()
             HStack {
-                Label("Values never enter command arguments or logs", systemImage: "checkmark.shield.fill")
+                Label(L("add.noLogs"), systemImage: "checkmark.shield.fill")
                     .font(.caption).foregroundStyle(.secondary)
                 Spacer()
-                Button("Cancel") { clearAndDismiss() }.keyboardShortcut(.cancelAction)
-                Button(isUpdate ? "Update value" : "Save securely") { save() }.buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction).disabled(!canSave)
+                Button(L("secrets.cancel")) { clearAndDismiss() }.keyboardShortcut(.cancelAction)
+                Button(L(isUpdate ? "add.update" : "add.save")) { save() }.buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction).disabled(!canSave)
             }.padding(18)
         }.frame(width: 560, height: 650)
         .onAppear { if isUpdate { name = model.prefillName } }
