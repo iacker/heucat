@@ -183,6 +183,11 @@ final class Loc: ObservableObject {
         "profiles.passMismatch": "Passphrases do not match",
         "profiles.touchHint": "The key must be plugged in — you will need to touch it",
         "profiles.warnActive": "This is the profile this app is driving. Sealing it cuts the running agent off from its keys.",
+        "profiles.backendPassphrase": "Passphrase",
+        "profiles.backendYubikey": "YubiKey",
+        "profiles.sealFido2Explain": "Sealing to your YubiKey needs no key and no touch — only the public recipient. Unsealing will need the key, its PIN and a touch.",
+        "profiles.noKeyEnrolled": "No YubiKey enrolled for this profile — passphrase only.",
+        "profiles.copyEnroll": "Copy enroll command",
         "profiles.notInstalled": "Chthonios is not installed",
 
         // Diagnostics
@@ -431,6 +436,11 @@ final class Loc: ObservableObject {
         "profiles.passMismatch": "Les phrases secrètes ne correspondent pas",
         "profiles.touchHint": "La clé doit être branchée — vous devrez la toucher",
         "profiles.warnActive": "C'est le profil que pilote cette application. Le sceller coupe l'agent en cours de ses clés.",
+        "profiles.backendPassphrase": "Phrase secrète",
+        "profiles.backendYubikey": "YubiKey",
+        "profiles.sealFido2Explain": "Sceller sur votre YubiKey ne demande ni la clé ni de toucher — seulement le destinataire public. Le descellement exigera la clé, son PIN et un toucher.",
+        "profiles.noKeyEnrolled": "Aucune YubiKey enrôlée pour ce profil — phrase secrète uniquement.",
+        "profiles.copyEnroll": "Copier la commande d'enrôlement",
         "profiles.notInstalled": "Chthonios n'est pas installé",
 
         // Diagnostics

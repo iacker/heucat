@@ -165,6 +165,20 @@ final class AppModel: ObservableObject {
     /// off mid-session, so the UI warns before doing that.
     var activeProfile: String { (hermesHome as NSString).lastPathComponent }
 
+    /// A profile can only be sealed to a YubiKey once a key has been enrolled,
+    /// which writes the (non-secret) recipient beside the profile. Enrollment
+    /// itself is a multi-prompt interactive ceremony and stays in the terminal.
+    func isEnrolledForFIDO2(_ profile: String) -> Bool {
+        let dir = NSString(string: chthoniosHome(from: hermesHome)).expandingTildeInPath
+        return FileManager.default.fileExists(
+            atPath: dir + "/profiles/\(profile)/.chthonios.recipient")
+    }
+
+    /// The command the user runs once, in a terminal, to bind a YubiKey.
+    func enrollCommand(for profile: String) -> String {
+        "chthonios enroll-key \(profile)"
+    }
+
     /// Run one chthonios subcommand, feeding stdin when a secret is needed.
     /// `seal`/`unseal` read the passphrase from stdin (getpass falls back to it
     /// when there is no TTY); `lock`/`verify` need nothing. `seal` asks twice,
@@ -276,9 +290,16 @@ final class AppModel: ObservableObject {
 
     /// Sealing needs no key at all in FIDO2 mode (public recipient only), and a
     /// passphrase otherwise. `seal` prompts twice, hence confirm.
-    func seal(_ profile: ProfileStatus, passphrase: String) async -> Bool {
-        await runChthonios(["seal", profile.name], secret: passphrase, confirm: true,
-                           activity: L("msg.sealing") + " \(profile.name)…")
+    func seal(_ profile: ProfileStatus, passphrase: String, fido2: Bool = false) async -> Bool {
+        if fido2 {
+            // No secret at all: sealing only needs the public recipient, which
+            // is the whole point — an unattended agent can lock a profile it
+            // cannot itself reopen.
+            return await runChthonios(["seal", profile.name, "--fido2"],
+                                      activity: L("msg.sealing") + " \(profile.name)…")
+        }
+        return await runChthonios(["seal", profile.name], secret: passphrase, confirm: true,
+                                  activity: L("msg.sealing") + " \(profile.name)…")
     }
 
     /// Passphrase profiles read it from stdin. FIDO2 profiles need the token's

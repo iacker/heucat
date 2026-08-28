@@ -13,6 +13,7 @@ struct ProfileSecretSheet: View {
 
     @State private var secret = ""
     @State private var confirmation = ""
+    @State private var useFIDO2 = false
 
     enum Action { case seal, unseal }
 
@@ -21,10 +22,20 @@ struct ProfileSecretSheet: View {
     private var sealsActiveProfile: Bool {
         action == .seal && profile.name == model.activeProfile
     }
+    /// A YubiKey seal is only offered once a key has been enrolled for this
+    /// profile; without a recipient chthonios has nothing to encrypt to.
+    private var canOfferFIDO2: Bool {
+        action == .seal && model.isEnrolledForFIDO2(profile.name)
+    }
+    private var sealingToKey: Bool { canOfferFIDO2 && useFIDO2 }
     private var isPIN: Bool { action == .unseal && profile.needsHardwareKey }
-    private var needsConfirmation: Bool { action == .seal }
+    /// FIDO2 sealing asks for nothing at all — that is the design.
+    private var needsSecret: Bool { !sealingToKey }
+    private var needsConfirmation: Bool { action == .seal && !sealingToKey }
     private var canSubmit: Bool {
-        !secret.isEmpty && (!needsConfirmation || secret == confirmation) && !model.isBusy
+        guard !model.isBusy else { return false }
+        if !needsSecret { return true }
+        return !secret.isEmpty && (!needsConfirmation || secret == confirmation)
     }
 
     private var title: String {
@@ -32,6 +43,7 @@ struct ProfileSecretSheet: View {
     }
     private var explanation: String {
         if isPIN { return L("profiles.pinExplain") }
+        if sealingToKey { return L("profiles.sealFido2Explain") }
         return L(action == .seal ? "profiles.sealExplain" : "profiles.unsealExplain")
     }
 
@@ -69,9 +81,38 @@ struct ProfileSecretSheet: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
-                SecureField(L(isPIN ? "profiles.pinField" : "profiles.passField"), text: $secret)
-                    .textFieldStyle(.roundedBorder)
-                    .onSubmit { if canSubmit { submit() } }
+                if canOfferFIDO2 {
+                    Picker("", selection: $useFIDO2) {
+                        Text(L("profiles.backendPassphrase")).tag(false)
+                        Text(L("profiles.backendYubikey")).tag(true)
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                } else if action == .seal {
+                    // No key enrolled: say so, and name the one command that fixes it.
+                    HStack(spacing: 8) {
+                        Image(systemName: "key.horizontal")
+                            .foregroundStyle(Theme.inkFaint)
+                        Text(L("profiles.noKeyEnrolled"))
+                            .font(.caption)
+                            .foregroundStyle(Theme.inkSoft)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Spacer()
+                        Button(L("profiles.copyEnroll")) {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(model.enrollCommand(for: profile.name),
+                                                           forType: .string)
+                        }
+                        .buttonStyle(.link)
+                        .font(.caption)
+                    }
+                }
+
+                if needsSecret {
+                    SecureField(L(isPIN ? "profiles.pinField" : "profiles.passField"), text: $secret)
+                        .textFieldStyle(.roundedBorder)
+                        .onSubmit { if canSubmit { submit() } }
+                }
                 if needsConfirmation {
                     SecureField(L("profiles.passConfirm"), text: $confirmation)
                         .textFieldStyle(.roundedBorder)
@@ -111,7 +152,7 @@ struct ProfileSecretSheet: View {
             let ok: Bool
             switch action {
             case .seal:
-                ok = await model.seal(profile, passphrase: secret)
+                ok = await model.seal(profile, passphrase: secret, fido2: sealingToKey)
             case .unseal:
                 ok = await model.unseal(profile, secret: secret)
             }
