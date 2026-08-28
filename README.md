@@ -177,7 +177,7 @@ Three moments matter, and only one of them ever asks you for anything.
 |---|---|---|
 | **Storing** `store NAME --enclave` | the Enclave generates a P256 key once and hands back only its public half; the value is written as ChaChaPoly ciphertext, mode 0600 | **No.** Encryption only needs the public half |
 | **Unlocking** `unlock` | the Enclave decrypts every secret at once; plaintexts are cached as TTL-bounded session records | **Once**, one Touch ID for the whole batch |
-| **Every Hermes startup** | `fetch()` reads session records and returns values, or fails fast | **No**, ever — startup must stay non-interactive |
+| **Every Hermes startup** | `fetch()` reads session records and returns values, or fails fast | **No**, ever: startup must stay non-interactive |
 
 Encryption only needs the public half, so adding a secret never prompts.
 Decryption is the only step that needs the private key, and the Enclave releases
@@ -262,8 +262,8 @@ read Swift.
 
 It also has a Sealed Profiles section that drives [hermes-chthonios](https://github.com/iacker/hermes-chthonios)
 end to end: seal a profile behind a passphrase or a YubiKey, unseal it, lock it,
-verify the ciphertext. The page opens on the numbers — how many profiles are
-sealed, open or unmanaged, and which one this app is driving — rather than on a
+verify the ciphertext. The page opens on the numbers (how many profiles are
+sealed, open or unmanaged, and which one this app is driving) rather than on a
 description of the engine behind it.
 
 The two crypto engines stay separate on purpose. Only the dashboard is shared,
@@ -315,9 +315,9 @@ you decide a key is safe.
 
 | Threat | `.env` file | `plain` mode | `enclave` mode |
 |---|---|---|---|
-| Someone reads your disk — backup, cloud sync, stolen Mac | **Plaintext. Game over.** | Encrypted at rest, needs your login session | **Ciphertext only, useless off this Mac** |
-| A process running as you — npm postinstall, browser extension — *before* any unlock | Readable | Readable | **Unreadable** |
-| The same process, *after* `unlock`, within the TTL | Readable | Readable | **Readable — this is the tradeoff** |
+| Someone reads your disk (backup, cloud sync, stolen Mac) | **Plaintext. Game over.** | Encrypted at rest, needs your login session | **Ciphertext only, useless off this Mac** |
+| A process running as you (npm postinstall, browser extension), *before* any unlock | Readable | Readable | **Unreadable** |
+| The same process, *after* `unlock`, within the TTL | Readable | Readable | **Readable. This is the tradeoff** |
 
 The last row is the honest part. Once you unlock, a process running as you can
 read those values for the length of the TTL. That is the price of never
@@ -368,7 +368,7 @@ include the upstream `SecretSourceConformance` kit. The long-value regression
 tests in `tests/test_long_values.py` do touch a scratch Keychain item, because
 the bug they pin only reproduces against the real `security` binary.
 
-The Swift side has its own check, plus two guards that fail on drift — one for
+The Swift side has its own check, plus two guards that fail on drift: one for
 the FR/EN string tables, one for the exit codes the UI reads from Chthonios:
 
 ```bash

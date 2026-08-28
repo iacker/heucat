@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>HEUCAT — Secure Enclave secret source for Hermes Agent</title>
+<title>HEUCAT: Secure Enclave secret source for Hermes Agent</title>
 <meta name="description" content="Serve Hermes Agent API keys from the macOS Keychain and Secure Enclave instead of a plaintext .env file. Touch ID-gated secrets, zero startup prompts.">
 <meta property="og:title" content="HEUCAT">
 <meta property="og:description" content="Touch ID-gated secrets for Hermes Agent, encrypted with a key that never leaves the Secure Enclave. Zero startup prompts.">
@@ -188,7 +188,7 @@
     </div>
     <div class="plate">
       <p>Hermes Agent reads its API keys from environment variables at startup. Normally those come from a
-      <code>.env</code> file in your profile directory — a list of credentials in plaintext, mode <code>0600</code>.
+      <code>.env</code> file in your profile directory, a list of credentials in plaintext, mode <code>0600</code>.
       That protects them from another user account. It does nothing against anything running as <em>you</em>: a curious
       <code>npm postinstall</code>, a browser extension with disk access, a backup that syncs somewhere you forgot.</p>
       <p>This plugin registers itself as a <strong>secret source</strong>. Hermes stops reading the file and asks the
@@ -216,7 +216,7 @@
         <div>
           <h3>Secure Enclave <span class="tag">hardware coprocessor</span></h3>
           <p>A separate processor on the Apple Silicon SoC with its own encrypted memory, isolated from the main CPU
-          and the OS. Enclave mode generates a <strong>P256 private key inside it</strong> that can never be read out —
+          and the OS. Enclave mode generates a <strong>P256 private key inside it</strong> that can never be read out,
           not by the kernel, not by root, not by a disk image. The key blob we store on disk is a sealed handle;
           copy it to another Mac and it is inert, because the matching private half lives in <em>this</em> chip.</p>
           <div class="role">Role here · holds the private key that decrypts enclave secrets</div>
@@ -240,8 +240,8 @@
         <div>
           <h3>LocalAuthentication &amp; Touch ID <span class="tag">LAContext</span></h3>
           <p>The framework that puts a live human in the loop. One <code>LAContext.evaluatePolicy</code> raises a single
-          Touch ID prompt that authorizes a <strong>whole batch</strong> of decryptions. When the sensor is unreachable —
-          a clamshell MacBook on an external keyboard — it falls back to the login password or an Apple Watch via
+          Touch ID prompt that authorizes a <strong>whole batch</strong> of decryptions. When the sensor is unreachable
+          (a clamshell MacBook on an external keyboard) it falls back to the login password or an Apple Watch via
           <code>deviceOwnerAuthentication</code>, so the flow never dead-ends.</p>
           <div class="role">Role here · the “live human” gate on every enclave decrypt</div>
         </div>
@@ -250,10 +250,10 @@
       <div class="comp">
         <div class="icn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M7 11V8a5 5 0 0110 0v3"/><rect x="5" y="11" width="14" height="9" rx="2"/></svg></div>
         <div>
-          <h3>CryptoKit — P256 + ChaChaPoly <span class="tag">envelope encryption</span></h3>
+          <h3>CryptoKit: P256 + ChaChaPoly <span class="tag">envelope encryption</span></h3>
           <p>Encryption needs only the enclave key’s <strong>public half</strong>, so storing a secret never prompts.
           An ephemeral P256 key does ECDH against it, HKDF-SHA256 derives a symmetric key, and ChaChaPoly seals the
-          value as an authenticated AEAD blob. Decryption runs the agreement <em>inside</em> the enclave — which is
+          value as an authenticated AEAD blob. Decryption runs the agreement <em>inside</em> the enclave, which is
           where the Touch ID gate bites.</p>
           <div class="role">Role here · the encrypt / decrypt envelope, public-key on the way in</div>
         </div>
@@ -264,7 +264,7 @@
         <div>
           <h3>Access control flags <span class="tag">SecAccessControl</span></h3>
           <p>The key is created gated on <code>.userPresence</code> by default. Pass <code>--strict-biometry</code> and
-          it binds to <code>.biometryCurrentSet</code> — the fingerprints enrolled <em>right now</em>. Enroll a new
+          it binds to <code>.biometryCurrentSet</code>, the fingerprints enrolled <em>right now</em>. Enroll a new
           finger later and the key invalidates itself. This is the anti-coercion cran: the key follows the enrollment,
           not just the person.</p>
           <div class="role">Role here · binds the key to presence, or to today’s exact biometrics</div>
@@ -286,12 +286,12 @@
         <tr><th></th><th>plain</th><th>enclave</th></tr>
         <tr><td>Storage</td><td>Keychain generic password</td><td>Ciphertext file, key inside the Secure Enclave</td></tr>
         <tr><td>Read requires</td><td>an unlocked login session</td><td>live user authentication</td></tr>
-        <tr><td>Works headless</td><td class="yes">yes — via the System keychain</td><td class="no">no, by design</td></tr>
-        <tr><td>Prompt at startup</td><td class="yes">never</td><td class="yes">never — you unlock out of band</td></tr>
+        <tr><td>Works headless</td><td class="yes">yes, via the System keychain</td><td class="no">no, by design</td></tr>
+        <tr><td>Prompt at startup</td><td class="yes">never</td><td class="yes">never, you unlock out of band</td></tr>
         <tr><td>Value at rest</td><td>encrypted by the Keychain</td><td>ChaChaPoly, key that cannot be exported</td></tr>
       </table>
       <p class="muted" style="margin-top:10px">Pick <strong>plain</strong> for anything a cron job or the gateway needs at boot.
-      Pick <strong>enclave</strong> for keys where you would rather the process fail than have them read silently — the one that signs, or spends money.</p>
+      Pick <strong>enclave</strong> for keys where you would rather the process fail than have them read silently: the one that signs, or spends money.</p>
     </div>
   </div>
 </section>
@@ -322,11 +322,11 @@
     </div>
     <div class="plate">
       <p>An optional SwiftUI app ships in <code>ui/</code>. It shells out to the same CLI and pipes secret
-      values over stdin, so nothing sensitive ever lands in process arguments — and it holds
+      values over stdin, so nothing sensitive ever lands in process arguments, and it holds
       <strong>no security logic of its own</strong>. One code path to audit, not two.</p>
       <p>It also drives <a href="https://github.com/iacker/hermes-chthonios">Chthonios</a> end to end:
       seal a profile behind a passphrase or a YubiKey, unseal it, lock it, verify it. The page opens on the
-      numbers — how many profiles are sealed, open or unmanaged, and which one the app is driving.</p>
+      numbers: how many profiles are sealed, open or unmanaged, and which one the app is driving.</p>
       <div class="flow">
         <div class="step"><div class="k">seal</div><div class="d">Passphrase, or your YubiKey. No touch needed to seal.</div></div>
         <div class="step"><div class="k">unseal</div><div class="d">PIN and a touch, asked for in the window.</div></div>
@@ -334,7 +334,7 @@
       </div>
       <p class="note">One YubiKey covers as many profiles as you like: the credential lives on the token, so
       the app offers to bind the next profile to the same key in a click. Enrolling the first key stays a
-      terminal ceremony — a mistyped PIN spends one of the token's eight retries.</p>
+      terminal ceremony, because a mistyped PIN spends one of the token's eight retries.</p>
       <div style="margin:20px 0 6px">
         <img src="assets/sealed-profiles.png" alt="The Sealed Profiles page: counters for sealed, open and unmanaged profiles, the profile the app is driving, and one row per profile with the actions its state allows." style="width:100%;border-radius:10px;border:.7px solid var(--hairline)">
       </div>
@@ -358,7 +358,7 @@
 git clone https://github.com/iacker/heucat \
   ~/.hermes/plugins/keychain-secretsource</pre>
         <h3>2 · Enable it in config.yaml</h3>
-        <pre><span class="c"># the key is `keychain` — the manifest name,</span>
+        <pre><span class="c"># the key is `keychain`, the manifest name,</span>
 <span class="c"># not the directory name</span>
 plugins:
   enabled:
@@ -379,7 +379,7 @@ hermes keychain unlock
 
 <span class="c"># per-secret state</span>
 hermes keychain status</pre>
-        <p class="muted">Storing registers the secret automatically — no hand-editing <code>config.yaml</code>. The Secure
+        <p class="muted">Storing registers the secret automatically, with no hand-editing <code>config.yaml</code>. The Secure
         Enclave helper compiles itself the first time you store an enclave secret; you need Xcode Command Line Tools
         (<code>xcode-select --install</code>).</p>
       </div>
@@ -439,10 +439,10 @@ hermes keychain status</pre>
     </div>
     <div class="honest">
       <h3>The honest limits</h3>
-      <p style="color:var(--ink-soft)">It is not a password manager, it does not sync anywhere, and it holds no website logins — only machine credentials.</p>
+      <p style="color:var(--ink-soft)">It is not a password manager, it does not sync anywhere, and it holds no website logins, only machine credentials.</p>
       <p style="color:var(--ink-soft)"><strong>Plain mode</strong> does not protect against a process running as you while your session is unlocked, which is all day. What it fixes is the flat file. That is real hygiene, not an impenetrable wall.</p>
-      <p style="color:var(--ink-soft)"><strong>Enclave mode</strong> raises the bar — until you unlock. During the TTL window the plaintexts are as reachable as plain mode. That is the price of letting cron jobs start without a prompt. <code>hermes keychain lock</code> closes the window early; a short <code>session_ttl_seconds</code> narrows it.</p>
-      <p style="color:var(--ink-soft);margin-bottom:0"><strong>One design note.</strong> Biometric Keychain ACLs would have been the obvious route. They require the Data Protection keychain, which requires a paid Apple Developer entitlement an ad-hoc signed CLI cannot hold — it fails with <code>errSecMissingEntitlement</code>. Encrypting against an Enclave key, the way <code>age-plugin-se</code> does, gets the same guarantee without it.</p>
+      <p style="color:var(--ink-soft)"><strong>Enclave mode</strong> raises the bar, until you unlock. During the TTL window the plaintexts are as reachable as plain mode. That is the price of letting cron jobs start without a prompt. <code>hermes keychain lock</code> closes the window early; a short <code>session_ttl_seconds</code> narrows it.</p>
+      <p style="color:var(--ink-soft);margin-bottom:0"><strong>One design note.</strong> Biometric Keychain ACLs would have been the obvious route. They require the Data Protection keychain, which requires a paid Apple Developer entitlement an ad-hoc signed CLI cannot hold, so it fails with <code>errSecMissingEntitlement</code>. Encrypting against an Enclave key, the way <code>age-plugin-se</code> does, gets the same guarantee without it.</p>
     </div>
   </div>
 </section>
@@ -456,7 +456,7 @@ hermes keychain status</pre>
 </footer>
 
 <script>
-  // draw the crest laurel ticks — shapes not an image, same as the SwiftUI Crest
+  // draw the crest laurel ticks, shapes not an image, same as the SwiftUI Crest
   const crest = document.getElementById('crest');
   for(let i=0;i<24;i++){
     const t=document.createElement('div'); t.className='tick';
