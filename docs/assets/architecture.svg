@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 640" width="1200" height="640"
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1200 640" width="1200" height="640"
      role="img" aria-labelledby="t d">
   <title id="t">How HEUCAT serves a secret to Hermes</title>
   <desc id="d">Hermes asks a chain of secret sources at startup. HEUCAT reads plain values
@@ -65,21 +65,21 @@
   <g fill="#514FB3">
     <circle r="4.5">
       <animateMotion dur="3.2s" repeatCount="indefinite" begin="0s">
-        <mpath href="#pMain"/>
+        <mpath href="#pMain" xlink:href="#pMain"/>
       </animateMotion>
       <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;.15;.85;1"
                dur="3.2s" repeatCount="indefinite" begin="0s"/>
     </circle>
     <circle r="4.5">
       <animateMotion dur="3.2s" repeatCount="indefinite" begin="1.05s">
-        <mpath href="#pPlain"/>
+        <mpath href="#pPlain" xlink:href="#pPlain"/>
       </animateMotion>
       <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;.15;.85;1"
                dur="3.2s" repeatCount="indefinite" begin="1.05s"/>
     </circle>
     <circle r="4.5">
       <animateMotion dur="3.2s" repeatCount="indefinite" begin="1.05s">
-        <mpath href="#pEnc"/>
+        <mpath href="#pEnc" xlink:href="#pEnc"/>
       </animateMotion>
       <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;.15;.85;1"
                dur="3.2s" repeatCount="indefinite" begin="1.05s"/>
