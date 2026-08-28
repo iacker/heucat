@@ -61,8 +61,10 @@ struct HermesKeychainMenuApp: App {
         try? await Task.sleep(for: .seconds(5))
         let diagnostic = "busy=\(model.isBusy) message=\(model.message) configured=\(model.status.configuredCount)"
         try? diagnostic.write(toFile: path + ".txt", atomically: true, encoding: .utf8)
+        // Render the real window, not a copy: a snapshot that can drift from the
+        // shipping UI is worse than no snapshot.
         let renderer = ImageRenderer(
-            content: DiagnosticSnapshotView()
+            content: MainWindowView(flattenForSnapshot: true, autoRefresh: false)
                 .environmentObject(model)
                 .frame(width: 1240, height: 760)
         )

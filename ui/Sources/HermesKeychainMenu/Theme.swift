@@ -15,6 +15,13 @@ enum Theme {
     static let amber = Color(red: 0.706, green: 0.478, blue: 0.114)
     static let hairline = Color(red: 0.878, green: 0.871, blue: 0.855)
 
+    /// Marble ground tokens. The mockup's page is not white: it is a cool violet
+    /// stone that makes the cream cards read as lifted plates.
+    static let marbleDeep = Color(red: 0.882, green: 0.878, blue: 0.925)
+    static let marbleShadow = Color(red: 0.239, green: 0.220, blue: 0.400)
+    /// Cards and the sidebar are warm cream, not pure white, against that ground.
+    static let cream = Color(red: 0.992, green: 0.988, blue: 0.980)
+
     /// Didot carries the plate-engraved look; Baskerville is the fallback and
     /// ships on every macOS install, so this never falls back to the system sans.
     static func display(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
@@ -111,12 +118,52 @@ struct Plate<Content: View>: View {
     var body: some View {
         content
             .padding(padding)
-            .background(Theme.card, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .background(Theme.cream, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(Theme.hairline, lineWidth: 0.7)
+                    .stroke(Color.white.opacity(0.9), lineWidth: 0.8)
             )
-            .shadow(color: Theme.ink.opacity(0.045), radius: 10, y: 3)
+            // Two shadows: a tight contact shadow plus a wide soft one. A single
+            // shadow reads as a sticker; the pair is what makes it look like
+            // paper resting on stone.
+            .shadow(color: Theme.marbleShadow.opacity(0.10), radius: 2, y: 1)
+            .shadow(color: Theme.marbleShadow.opacity(0.13), radius: 18, y: 8)
+    }
+}
+
+/// A compact stat tile: icon, big number, label, and an optional delta line.
+/// Used for the row of counters across the top of the overview.
+struct StatTile: View {
+    let icon: String
+    let value: String
+    let label: String
+    var caption: String? = nil
+    var tint: Color = Theme.lapis
+
+    var body: some View {
+        Plate(padding: 15) {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 8) {
+                    Image(systemName: icon)
+                        .font(.system(size: 13, weight: .light))
+                        .foregroundStyle(tint)
+                    Eyebrow(text: label)
+                    Spacer(minLength: 0)
+                }
+                Text(value)
+                    .font(Theme.display(30, weight: .medium))
+                    .foregroundStyle(Theme.ink)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+                if let caption {
+                    Text(caption)
+                        .font(.system(size: 10))
+                        .foregroundStyle(Theme.inkFaint)
+                        .lineLimit(1)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
 }
 
@@ -149,16 +196,24 @@ extension TitledPlate where Accessory == EmptyView {
     }
 }
 
-/// The marble field behind everything: warm paper plus two very low-opacity
-/// washes that keep large empty areas from looking flat.
+/// The marble field behind everything. The mockup's depth comes from a violet
+/// ground with light pooling in the centre, not from a flat paper fill: cards
+/// only read as lifted when the field behind them is darker at the edges.
 struct MarbleBackground: View {
     var body: some View {
         ZStack {
-            Theme.paper
-            RadialGradient(colors: [Color.white.opacity(0.9), .clear],
-                           center: .topLeading, startRadius: 0, endRadius: 780)
-            RadialGradient(colors: [Theme.lapis.opacity(0.035), .clear],
-                           center: .init(x: 0.72, y: 0.16), startRadius: 0, endRadius: 620)
+            Theme.marbleDeep
+            // Light pools behind the content column so the centre lifts.
+            RadialGradient(colors: [Color.white.opacity(0.55), .clear],
+                           center: .init(x: 0.5, y: 0.32), startRadius: 0, endRadius: 760)
+            // Violet wash top-left and bottom-right, the mockup's cool corners.
+            RadialGradient(colors: [Theme.lapis.opacity(0.20), .clear],
+                           center: .init(x: 0.06, y: 0.04), startRadius: 0, endRadius: 660)
+            RadialGradient(colors: [Theme.lapis.opacity(0.16), .clear],
+                           center: .init(x: 0.96, y: 0.98), startRadius: 0, endRadius: 620)
+            // Vignette: keeps the outer frame dark so the app feels inset.
+            RadialGradient(colors: [.clear, Theme.marbleShadow.opacity(0.34)],
+                           center: .center, startRadius: 380, endRadius: 1080)
         }
         .ignoresSafeArea()
     }

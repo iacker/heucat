@@ -2,6 +2,10 @@ import AppKit
 import SwiftUI
 
 struct MainWindowView: View {
+    /// When true the section content is rendered without its ScrollView.
+    /// ImageRenderer cannot rasterise a ScrollView offscreen (it measures as
+    /// empty), so snapshots would otherwise show blank content.
+    var flattenForSnapshot = false
     @EnvironmentObject private var model: AppModel
     var autoRefresh = true
 
@@ -14,7 +18,7 @@ struct MainWindowView: View {
                 Rectangle().fill(Theme.hairline).frame(height: 0.7)
                 Group {
                     switch model.selectedSection ?? .overview {
-                    case .overview: OverviewView()
+                    case .overview: OverviewView(flatten: flattenForSnapshot)
                     case .secrets: SecretsView()
                     case .sessions: SessionsView()
                     case .profiles: SealedProfilesView()
@@ -106,7 +110,13 @@ struct MainWindowView: View {
             .padding(.bottom, 22)
         }
         .frame(width: 214)
-        .background(Color.white.opacity(0.55))
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(Theme.cream)
+                .shadow(color: Theme.marbleShadow.opacity(0.16), radius: 22, x: 4, y: 6)
+        )
+        .padding(.vertical, 12)
+        .padding(.leading, 12)
     }
 
     private func navItem(_ section: AppSection) -> some View {
@@ -118,21 +128,21 @@ struct MainWindowView: View {
                 Image(systemName: section.icon)
                     .font(.system(size: 13))
                     .frame(width: 17)
-                    .foregroundStyle(selected ? Theme.lapis : Theme.inkSoft)
+                    .foregroundStyle(selected ? Color.white : Theme.inkSoft)
                 Text(section.rawValue)
                     .font(.system(size: 13, weight: selected ? .semibold : .regular))
-                    .foregroundStyle(selected ? Theme.ink : Theme.inkSoft)
+                    .foregroundStyle(selected ? Color.white : Theme.inkSoft)
                 Spacer()
             }
             .padding(.horizontal, 13)
             .padding(.vertical, 9)
             .background(
                 RoundedRectangle(cornerRadius: 9, style: .continuous)
-                    .fill(selected ? Color.white : .clear)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 9, style: .continuous)
-                    .stroke(selected ? Theme.hairline : .clear, lineWidth: 0.7)
+                    .fill(selected
+                          ? AnyShapeStyle(LinearGradient(colors: [Theme.lapis, Theme.lapisSoft],
+                                                         startPoint: .topLeading, endPoint: .bottomTrailing))
+                          : AnyShapeStyle(Color.clear))
+                    .shadow(color: selected ? Theme.lapis.opacity(0.34) : .clear, radius: 7, y: 3)
             )
         }
         .buttonStyle(.plain)
@@ -199,23 +209,33 @@ struct MainWindowView: View {
 // MARK: - Overview
 
 struct OverviewView: View {
+    var flatten = false
     @EnvironmentObject private var model: AppModel
 
     var body: some View {
-        ScrollView {
-            HStack(alignment: .top, spacing: 20) {
-                VStack(spacing: 20) {
-                    hero
-                    HStack(alignment: .top, spacing: 16) {
-                        keyOverview
-                        modeBreakdown
-                    }
-                }
-                rail
-                    .frame(width: 268)
+        Group {
+            if flatten {
+                content
+            } else {
+                ScrollView { content }
             }
-            .padding(26)
         }
+    }
+
+    private var content: some View {
+        HStack(alignment: .top, spacing: 20) {
+            VStack(spacing: 20) {
+                hero
+                statTiles
+                HStack(alignment: .top, spacing: 16) {
+                    keyOverview
+                    modeBreakdown
+                }
+            }
+            rail
+                .frame(width: 268)
+        }
+        .padding(26)
     }
 
     private var hero: some View {
@@ -267,10 +287,10 @@ struct OverviewView: View {
                     .padding(.top, 22)
                 }
                 .padding(30)
-                .frame(minWidth: 380, alignment: .leading)
+                .frame(minWidth: 340, alignment: .leading)
                 .layoutPriority(1)
 
-                Spacer(minLength: 0)
+                Spacer(minLength: 12)
 
                 ZStack {
                     ForEach(0..<3, id: \.self) { i in
@@ -305,9 +325,34 @@ struct OverviewView: View {
                     }
                     .offset(y: 118)
                 }
-                .frame(width: 300, height: 316)
-                .padding(.trailing, 26)
+                .frame(width: 268, height: 300)
+                .padding(.trailing, 20)
             }
+        }
+    }
+
+    /// Four counters across the top. Every number comes from parsed CLI status;
+    /// the captions state what the number means rather than a fake trend.
+    private var statTiles: some View {
+        HStack(spacing: 16) {
+            StatTile(icon: "key.fill",
+                     value: "\(model.status.configuredCount)",
+                     label: "Secrets",
+                     caption: "under management")
+            StatTile(icon: "cpu",
+                     value: "\(model.enclaveCount)",
+                     label: "Enclave",
+                     caption: "hardware-bound",
+                     tint: Theme.verdigris)
+            StatTile(icon: "lock.open.fill",
+                     value: "\(model.readableCount)",
+                     label: "Readable",
+                     caption: model.readableCount == 0 ? "session closed" : "session open",
+                     tint: model.readableCount == 0 ? Theme.amber : Theme.verdigris)
+            StatTile(icon: "checkmark.shield.fill",
+                     value: model.healthLabel,
+                     label: "Health",
+                     caption: model.status.sourceEnabled ? "source active" : "source off")
         }
     }
 
