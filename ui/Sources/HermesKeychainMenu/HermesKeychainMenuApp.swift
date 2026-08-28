@@ -69,7 +69,7 @@ struct HermesKeychainMenuApp: App {
         // Render the real window, not a copy: a snapshot that can drift from the
         // shipping UI is worse than no snapshot.
         let renderer = ImageRenderer(
-            content: MainWindowView(flattenForSnapshot: true, autoRefresh: false)
+            content: MainWindowView(autoRefresh: false)
                 .environmentObject(model)
                 .frame(width: 1240, height: 760)
         )

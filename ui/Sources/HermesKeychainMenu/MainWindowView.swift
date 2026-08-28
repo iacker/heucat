@@ -1,11 +1,12 @@
 import AppKit
 import SwiftUI
 
+/// ImageRenderer measures an offscreen ScrollView as empty, so snapshots would
+/// come out blank. Set once at capture time instead of threading a parameter
+/// through every view.
+let snapshotMode = ProcessInfo.processInfo.environment["HERMES_UI_CAPTURE_PATH"] != nil
+
 struct MainWindowView: View {
-    /// When true the section content is rendered without its ScrollView.
-    /// ImageRenderer cannot rasterise a ScrollView offscreen (it measures as
-    /// empty), so snapshots would otherwise show blank content.
-    var flattenForSnapshot = false
     @EnvironmentObject private var model: AppModel
     /// Observing Loc makes the whole window redraw the moment the language
     /// changes, which is what makes the picker feel instant.
@@ -21,8 +22,8 @@ struct MainWindowView: View {
                 Rectangle().fill(Theme.hairline).frame(height: 0.7)
                 Group {
                     switch model.selectedSection ?? .overview {
-                    case .overview: OverviewView(flatten: flattenForSnapshot)
-                    case .secrets: SecretsView(flatten: flattenForSnapshot)
+                    case .overview: OverviewView()
+                    case .secrets: SecretsView()
                     case .sessions: SessionsView()
                     case .profiles: SealedProfilesView()
                     case .howitworks: HowItWorksView()
@@ -225,16 +226,11 @@ struct MainWindowView: View {
 // MARK: - Overview
 
 struct OverviewView: View {
-    var flatten = false
     @EnvironmentObject private var model: AppModel
 
     var body: some View {
         Group {
-            if flatten {
-                content
-            } else {
-                ScrollView { content }
-            }
+            if snapshotMode { content } else { ScrollView { content } }
         }
     }
 
@@ -538,7 +534,6 @@ struct OverviewView: View {
 // MARK: - Secrets
 
 struct SecretsView: View {
-    var flatten = false
     @EnvironmentObject private var model: AppModel
     @State private var query = ""
 
@@ -596,7 +591,7 @@ struct SecretsView: View {
             }
             if filtered.isEmpty {
                 EmptySecretsView(compact: false).frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if flatten {
+            } else if snapshotMode {
                 VStack(spacing: 9) {
                     ForEach(filtered) { SecretRow(secret: $0, showActions: true) }
                 }
@@ -860,7 +855,12 @@ struct HowItWorksView: View {
     }
 
     var body: some View {
-        ScrollView {
+        Group {
+            if snapshotMode { stack } else { ScrollView { stack } }
+        }
+    }
+
+    private var stack: some View {
             VStack(alignment: .leading, spacing: 20) {
                 pageHeader(L("how.title"), L("how.subtitle"))
                 ForEach(Array(stages.enumerated()), id: \.element.id) { index, stage in
@@ -898,7 +898,6 @@ struct HowItWorksView: View {
                 Ornament(width: 200).frame(maxWidth: .infinity)
             }
             .padding(30)
-        }
     }
 }
 
