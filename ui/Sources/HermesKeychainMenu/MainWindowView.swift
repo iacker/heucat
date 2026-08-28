@@ -719,9 +719,19 @@ struct SessionsView: View {
 
 struct SealedProfilesView: View {
     @EnvironmentObject private var model: AppModel
+    @ObservedObject private var loc = Loc.shared
+    @State private var sheet: SheetRequest?
+
+    /// Identifiable wrapper so `.sheet(item:)` carries both row and action.
+    struct SheetRequest: Identifiable {
+        let profile: ProfileStatus
+        let action: ProfileSecretSheet.Action
+        var id: String { profile.name + String(describing: action) }
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
             pageHeader(L("profiles.title"), L("profiles.subtitle2"))
             Plate {
                 HStack(spacing: 20) {
@@ -754,6 +764,19 @@ struct SealedProfilesView: View {
                         .buttonStyle(QuietButtonStyle())
                 }
             }
+
+            if !model.profiles.isEmpty {
+                TitledPlate(L("profiles.allProfiles")) {
+                    VStack(spacing: 9) {
+                        ForEach(model.profiles) { profile in
+                            ProfileRow(profile: profile) { action in
+                                sheet = SheetRequest(profile: profile, action: action)
+                            }
+                        }
+                    }
+                }
+            }
+
             TitledPlate(L("profiles.boundary")) {
                 VStack(alignment: .leading, spacing: 12) {
                     boundaryRow("cpu", L("profiles.boundary.enclave"))
@@ -768,9 +791,13 @@ struct SealedProfilesView: View {
                 .foregroundStyle(Theme.inkSoft)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: 620, alignment: .leading)
-            Spacer()
+            }
+            .padding(30)
         }
-        .padding(30)
+        .sheet(item: $sheet) { request in
+            ProfileSecretSheet(profile: request.profile, action: request.action)
+                .environmentObject(model)
+        }
     }
 
     private func boundaryRow(_ icon: String, _ text: String) -> some View {
@@ -782,6 +809,113 @@ struct SealedProfilesView: View {
                 .background(RoundedRectangle(cornerRadius: 7).fill(Theme.lapis.opacity(0.07)))
             Text(text).font(Theme.serif(13)).foregroundStyle(Theme.inkSoft)
             Spacer()
+        }
+    }
+}
+
+/// One profile: state, backend, and the actions that state allows.
+struct ProfileRow: View {
+    @EnvironmentObject private var model: AppModel
+    @ObservedObject private var loc = Loc.shared
+    let profile: ProfileStatus
+    let onSecretNeeded: (ProfileSecretSheet.Action) -> Void
+
+    private var tint: Color {
+        switch profile.state {
+        case .sealed: Theme.verdigris
+        case .open: Theme.amber
+        case .unmanaged: Theme.inkFaint
+        }
+    }
+    private var icon: String {
+        switch profile.state {
+        case .sealed: "lock.fill"
+        case .open: "lock.open.fill"
+        case .unmanaged: "circle.dashed"
+        }
+    }
+    private var stateLabel: String {
+        switch profile.state {
+        case .sealed: L("profiles.stateSealed")
+        case .open: L("profiles.stateOpen")
+        case .unmanaged: L("profiles.stateUnmanaged")
+        }
+    }
+
+    var body: some View {
+        Plate(padding: 14) {
+            HStack(spacing: 13) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                        .fill(tint.opacity(0.08))
+                    Image(systemName: icon)
+                        .font(.system(size: 14))
+                        .foregroundStyle(tint)
+                }
+                .frame(width: 38, height: 38)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 6) {
+                        Text(profile.name)
+                            .font(.system(size: 12, weight: .medium, design: .monospaced))
+                            .foregroundStyle(Theme.ink)
+                        if profile.name == model.activeProfile {
+                            Text(L("profiles.active"))
+                                .font(.system(size: 9, weight: .semibold))
+                                .foregroundStyle(Theme.lapis)
+                                .padding(.horizontal, 5).padding(.vertical, 2)
+                                .background(Theme.lapis.opacity(0.1), in: Capsule())
+                        }
+                        if profile.needsHardwareKey {
+                            Image(systemName: "key.horizontal.fill")
+                                .font(.system(size: 9))
+                                .foregroundStyle(Theme.amber)
+                                .help(L("profiles.yubikeyBacked"))
+                        }
+                    }
+                    HStack(spacing: 5) {
+                        Text(stateLabel)
+                            .font(.system(size: 10))
+                            .foregroundStyle(tint)
+                        if !profile.backend.isEmpty {
+                            Text("· \(profile.backend)")
+                                .font(.system(size: 10))
+                                .foregroundStyle(Theme.inkFaint)
+                        }
+                        if !profile.sealedAt.isEmpty {
+                            Text("· \(profile.sealedAt.prefix(10))")
+                                .font(.system(size: 10))
+                                .foregroundStyle(Theme.inkFaint)
+                        }
+                    }
+                }
+                Spacer(minLength: 12)
+
+                HStack(spacing: 7) {
+                    switch profile.state {
+                    case .unmanaged:
+                        Button(L("profiles.seal")) { onSecretNeeded(.seal) }
+                            .buttonStyle(QuietButtonStyle())
+                    case .sealed:
+                        Button(L("profiles.unseal")) { onSecretNeeded(.unseal) }
+                            .buttonStyle(QuietButtonStyle())
+                        Button(L("profiles.verify")) {
+                            Task { await model.verifyProfile(profile) }
+                        }
+                        .buttonStyle(QuietButtonStyle())
+                    case .open:
+                        Button(L("profiles.lock")) {
+                            Task { await model.lockProfile(profile) }
+                        }
+                        .buttonStyle(QuietButtonStyle())
+                        Button(L("profiles.verify")) {
+                            Task { await model.verifyProfile(profile) }
+                        }
+                        .buttonStyle(QuietButtonStyle())
+                    }
+                }
+                .disabled(model.isBusy)
+            }
         }
     }
 }

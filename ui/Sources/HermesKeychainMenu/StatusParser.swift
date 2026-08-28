@@ -55,6 +55,35 @@ struct KeychainStatus: Equatable {
     }
 }
 
+/// Chthonios wants the Hermes ROOT (`~/.hermes`) and derives `profiles/<name>`
+/// itself, while the keychain CLI wants the profile dir (`~/.hermes/profiles/ares`).
+/// Passing the app's hermesHome straight through made chthonios see one profile
+/// instead of all of them. ponytail: string trim, not a filesystem probe — the
+/// layout is fixed by Hermes itself.
+func chthoniosHome(from hermesHome: String) -> String {
+    guard let r = hermesHome.range(of: "/profiles/") else { return hermesHome }
+    return String(hermesHome[..<r.lowerBound])
+}
+
+/// One row of `chthonios status`, i.e. one Hermes profile.
+struct ProfileStatus: Identifiable, Equatable {
+    let name: String
+    let state: State
+    let backend: String     // "passphrase", "fido2-hmac", or "" when unmanaged
+    let integrity: String   // "ok", "BAD", or "" when unmanaged
+    let sealedAt: String
+
+    var id: String { name }
+    /// FIDO2 unsealing needs the YubiKey's PIN, so the UI must offer a PIN field.
+    var needsHardwareKey: Bool { backend.hasPrefix("fido2") }
+
+    enum State: String, Equatable {
+        case sealed     // ciphertext at rest, no .env
+        case open       // unsealed for this session
+        case unmanaged  // chthonios does not know this profile
+    }
+}
+
 /// Result of `chthonios status`, as a case plus the profile names it names.
 ///
 /// Kept out of AppModel so the self-test can compile this file alone, without
@@ -68,21 +97,51 @@ enum ChthoniosStatus: Equatable {
     /// The table is `PROFILE STATE BACKEND INTEGRITY SEALED AT` under a rule,
     /// so data rows are whatever follows the rule line.
     ///
-    /// ponytail: substring match on the state word, not a column parser. The
-    /// CLI is ours and the states are a closed set; widen only if a state ever
-    /// needs its own wording.
+    /// ponytail: split on whitespace runs, not fixed columns. The state glyph
+    /// (◆ ◇ ◈) is dropped and the state word drives everything; widen only if
+    /// a column ever holds a value with a space in it.
+    static func rows(_ output: String, ok: Bool) -> [ProfileStatus] {
+        guard ok else { return [] }
+        return output
+            .split(separator: "\n")
+            .drop { !$0.contains("\u{2500}") }   // ── header rule
+            .dropFirst()
+            .compactMap { line -> ProfileStatus? in
+                let glyphs: Set<Character> = ["\u{25C6}", "\u{25C7}", "\u{25C8}", "\u{2713}"]
+                let fields: [String] = line
+                    .split(whereSeparator: { $0.isWhitespace })
+                    .map(String.init)
+                    .filter { $0.count != 1 || !glyphs.contains($0.first!) }
+                guard fields.count >= 2,
+                      let state = ProfileStatus.State(fields[1]) else { return nil }
+                return ProfileStatus(
+                    name: fields[0],
+                    state: state,
+                    backend: fields.count > 2 ? fields[2] : "",
+                    integrity: fields.count > 3 ? fields[3] : "",
+                    sealedAt: fields.count > 4 ? fields[4] : ""
+                )
+            }
+    }
+
     static func parse(_ output: String, ok: Bool) -> ChthoniosStatus {
         guard ok else { return .failed }
-        let rows = output
-            .split(separator: "\n")
-            .drop { !$0.contains("\u{2500}") }
-            .dropFirst()
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-            .filter { !$0.isEmpty }
+        let rows = rows(output, ok: ok)
         guard !rows.isEmpty else { return .none }
+        let sealed = rows.filter { $0.state == .sealed }.map(\.name)
+        return sealed.isEmpty ? .unmanaged(rows.map(\.name)) : .sealed(sealed)
+    }
+}
 
-        let name = { (row: String) in row.split(separator: " ").first.map(String.init) }
-        let sealed = rows.filter { $0.contains("sealed") }.compactMap(name)
-        return sealed.isEmpty ? .unmanaged(rows.compactMap(name)) : .sealed(sealed)
+private extension ProfileStatus.State {
+    /// The CLI prints SEALED / OPEN / unmanaged. Match case-insensitively so a
+    /// cosmetic change in the CLI cannot silently empty the table.
+    init?(_ word: String) {
+        switch word.lowercased() {
+        case "sealed": self = .sealed
+        case "open": self = .open
+        case "unmanaged": self = .unmanaged
+        default: return nil
+        }
     }
 }

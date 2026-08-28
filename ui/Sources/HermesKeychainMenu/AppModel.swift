@@ -61,6 +61,7 @@ final class AppModel: ObservableObject {
     @Published var pendingDeletion: SecretStatus?
     @Published var chthoniosSummary = "Checking…"
     @Published var chthoniosAvailable = false
+    @Published var profiles: [ProfileStatus] = []
     @Published var pingResults: [String: String] = [:]   // env name -> "ok" | "dead" | "unknown" | "…"
     @Published var isTestingAll = false
 
@@ -137,15 +138,61 @@ final class AppModel: ObservableObject {
         guard FileManager.default.isExecutableFile(atPath: path) else {
             chthoniosAvailable = false
             chthoniosSummary = L("profiles.notInstalled")
+            profiles = []
             return
         }
         do {
-            let result = try await HermesRunner(binaryPath: path, hermesHome: hermesHome).run(["status"])
-            chthoniosAvailable = result.exitCode == 0
-            chthoniosSummary = ChthoniosStatus.parse(result.output, ok: result.exitCode == 0).label
+            let result = try await chthoniosRunner.run(["status"])
+            let ok = result.exitCode == 0
+            chthoniosAvailable = ok
+            chthoniosSummary = ChthoniosStatus.parse(result.output, ok: ok).label
+            profiles = ChthoniosStatus.rows(result.output, ok: ok)
         } catch {
             chthoniosAvailable = false
             chthoniosSummary = error.localizedDescription
+            profiles = []
+        }
+    }
+
+    /// Chthonios is driven from the Hermes ROOT, not the profile dir — see
+    /// `chthoniosHome(from:)`. Without this it only ever saw one profile.
+    var chthoniosRunner: HermesRunner {
+        HermesRunner(binaryPath: NSString(string: chthoniosBinary).expandingTildeInPath,
+                     hermesHome: chthoniosHome(from: hermesHome))
+    }
+
+    /// The profile this app is currently pointed at. Sealing it cuts the agent
+    /// off mid-session, so the UI warns before doing that.
+    var activeProfile: String { (hermesHome as NSString).lastPathComponent }
+
+    /// Run one chthonios subcommand, feeding stdin when a secret is needed.
+    /// `seal`/`unseal` read the passphrase from stdin (getpass falls back to it
+    /// when there is no TTY); `lock`/`verify` need nothing. `seal` asks twice,
+    /// hence `confirm`.
+    func runChthonios(_ command: [String], secret: String? = nil, confirm: Bool = false,
+                      activity: String) async -> Bool {
+        guard !isBusy else { return false }
+        isBusy = true
+        message = activity
+        defer { isBusy = false }
+        do {
+            let stdin = secret.map { pass -> Data in
+                Data((confirm ? "\(pass)\n\(pass)\n" : "\(pass)\n").utf8)
+            }
+            let result = try await chthoniosRunner.run(command, stdinData: stdin)
+            // chthonios exits 0 on a wrong passphrase, so trust the text too.
+            let out = result.output.lowercased()
+            let failed = result.exitCode != 0
+                || out.contains("wrong passphrase")
+                || out.contains("failed")
+                || out.contains("not found")
+                || out.contains("do not match")
+            message = failed ? lastLine(result.output) : activity + " " + L("msg.done")
+            await refreshChthonios()
+            return !failed
+        } catch {
+            message = error.localizedDescription
+            return false
         }
     }
 
@@ -225,6 +272,38 @@ final class AppModel: ObservableObject {
         for secret in status.secrets where secret.mode == "plain" {
             await migrateToEnclave(secret)
         }
+    }
+
+    /// Sealing needs no key at all in FIDO2 mode (public recipient only), and a
+    /// passphrase otherwise. `seal` prompts twice, hence confirm.
+    func seal(_ profile: ProfileStatus, passphrase: String) async -> Bool {
+        await runChthonios(["seal", profile.name], secret: passphrase, confirm: true,
+                           activity: L("msg.sealing") + " \(profile.name)…")
+    }
+
+    /// Passphrase profiles read it from stdin. FIDO2 profiles need the token's
+    /// PIN plus a physical touch; --pin-stdin makes chthonios drive age on a
+    /// pty so this works without a terminal.
+    func unseal(_ profile: ProfileStatus, secret: String) async -> Bool {
+        let command = profile.needsHardwareKey
+            ? ["unseal", profile.name, "--pin-stdin"]
+            : ["unseal", profile.name]
+        return await runChthonios(command, secret: secret,
+                                  activity: L(profile.needsHardwareKey
+                                              ? "msg.waitingTouch" : "msg.unsealing")
+                                            + " \(profile.name)…")
+    }
+
+    /// Drop the plaintext .env, keep the seal. No secret needed.
+    func lockProfile(_ profile: ProfileStatus) async {
+        _ = await runChthonios(["lock", profile.name],
+                               activity: L("msg.locking") + " \(profile.name)…")
+    }
+
+    /// Check seal integrity. Needs no key, so it is always safe to offer.
+    func verifyProfile(_ profile: ProfileStatus) async {
+        _ = await runChthonios(["verify", profile.name],
+                               activity: L("msg.verifying") + " \(profile.name)…")
     }
 
     func openRepository() {
