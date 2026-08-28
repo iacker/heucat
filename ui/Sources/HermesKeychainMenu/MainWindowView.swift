@@ -22,7 +22,7 @@ struct MainWindowView: View {
                 Group {
                     switch model.selectedSection ?? .overview {
                     case .overview: OverviewView(flatten: flattenForSnapshot)
-                    case .secrets: SecretsView()
+                    case .secrets: SecretsView(flatten: flattenForSnapshot)
                     case .sessions: SessionsView()
                     case .profiles: SealedProfilesView()
                     case .howitworks: HowItWorksView()
@@ -538,6 +538,7 @@ struct OverviewView: View {
 // MARK: - Secrets
 
 struct SecretsView: View {
+    var flatten = false
     @EnvironmentObject private var model: AppModel
     @State private var query = ""
 
@@ -566,6 +567,17 @@ struct SecretsView: View {
 
                 Spacer()
                 Button {
+                    Task { await model.testAll() }
+                } label: {
+                    HStack(spacing: 7) {
+                        Image(systemName: "bolt.horizontal").font(.system(size: 11))
+                        Text(L(model.isTestingAll ? "secrets.testing" : "secrets.testAll"))
+                    }
+                }
+                .buttonStyle(QuietButtonStyle())
+                .disabled(model.isTestingAll || model.status.secrets.isEmpty)
+
+                Button {
                     model.showingAddSecret = true
                 } label: {
                     HStack(spacing: 7) {
@@ -576,8 +588,19 @@ struct SecretsView: View {
                 .buttonStyle(LapisButtonStyle())
                 .disabled(model.isBusy)
             }
+
+            // Only shown when there is something to act on: a plain secret is
+            // readable by anything running as you, and the fix is one click.
+            if model.plainCount > 0 {
+                migrateBanner
+            }
             if filtered.isEmpty {
                 EmptySecretsView(compact: false).frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if flatten {
+                VStack(spacing: 9) {
+                    ForEach(filtered) { SecretRow(secret: $0, showActions: true) }
+                }
+                Spacer(minLength: 0)
             } else {
                 ScrollView {
                     LazyVStack(spacing: 9) {
@@ -587,6 +610,38 @@ struct SecretsView: View {
             }
         }
         .padding(30)
+    }
+
+    /// Amber, not red: a plain secret is a weaker default, not a breach.
+    private var migrateBanner: some View {
+        HStack(alignment: .top, spacing: 13) {
+            Image(systemName: "exclamationmark.shield")
+                .font(.system(size: 17, weight: .light))
+                .foregroundStyle(Theme.amber)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(model.plainCount == 1 ? L("migrate.banner1") : L("migrate.banner", model.plainCount))
+                    .font(Theme.serif(14, weight: .semibold))
+                    .foregroundStyle(Theme.ink)
+                Text(L("migrate.bannerBody"))
+                    .font(Theme.serif(12))
+                    .foregroundStyle(Theme.inkSoft)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 10)
+            Button {
+                Task { await model.migrateAllPlain() }
+            } label: {
+                Text(L(model.isBusy ? "migrate.busy" : "migrate.action"))
+            }
+            .buttonStyle(LapisButtonStyle())
+            .disabled(model.isBusy)
+        }
+        .padding(15)
+        .background(Theme.amber.opacity(0.07), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(Theme.amber.opacity(0.3), lineWidth: 0.8)
+        )
     }
 }
 
@@ -903,6 +958,22 @@ struct SecretRow: View {
                 }
 
                 if showActions {
+                    // Unlock lives on the row that shows the problem, not three
+                    // clicks away in Sessions.
+                    if secret.mode == "enclave" && !secret.isUnlocked {
+                        Button {
+                            Task { await model.unlock() }
+                        } label: {
+                            HStack(spacing: 5) {
+                                Image(systemName: "touchid").font(.system(size: 11))
+                                Text(L("secrets.unlockRow"))
+                            }
+                        }
+                        .buttonStyle(QuietButtonStyle())
+                        .disabled(model.isBusy)
+                        .help(L("secrets.unlockRowHelp"))
+                    }
+
                     Menu {
                         Button(L("secrets.copyName"), systemImage: "doc.on.doc") {
                             NSPasteboard.general.clearContents()

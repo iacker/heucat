@@ -58,6 +58,11 @@ struct HermesKeychainMenuApp: App {
     @MainActor
     private func exportDiagnosticCaptureIfRequested() async {
         guard let path = ProcessInfo.processInfo.environment["HERMES_UI_CAPTURE_PATH"] else { return }
+        // Optional: capture a specific section instead of the default overview.
+        if let section = ProcessInfo.processInfo.environment["HERMES_UI_CAPTURE_SECTION"],
+           let match = AppSection.allCases.first(where: { $0.rawValue == section }) {
+            model.selectedSection = match
+        }
         try? await Task.sleep(for: .seconds(5))
         let diagnostic = "busy=\(model.isBusy) message=\(model.message) configured=\(model.status.configuredCount)"
         try? diagnostic.write(toFile: path + ".txt", atomically: true, encoding: .utf8)

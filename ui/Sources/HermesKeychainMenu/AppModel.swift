@@ -52,6 +52,7 @@ final class AppModel: ObservableObject {
     @Published var chthoniosSummary = "Checking…"
     @Published var chthoniosAvailable = false
     @Published var pingResults: [String: String] = [:]   // env name -> "ok" | "dead" | "unknown" | "…"
+    @Published var isTestingAll = false
 
     // MARK: Derived state
     //
@@ -199,6 +200,26 @@ final class AppModel: ObservableObject {
             else { pingResults[secret.name] = "dead" }
         } catch {
             pingResults[secret.name] = "dead"
+        }
+    }
+
+    /// Ping every secret in turn. ponytail: sequential, not a TaskGroup — a
+    /// handful of keys finishes fast and it avoids hammering several provider
+    /// APIs at once. Parallelise if this ever covers dozens of secrets.
+    func testAll() async {
+        guard !isTestingAll else { return }
+        isTestingAll = true
+        defer { isTestingAll = false }
+        for secret in status.secrets {
+            await testSecret(secret)
+        }
+    }
+
+    /// Move every plain secret into the Enclave. Stops at the first failure so
+    /// a broken one does not hide behind a pile of later output.
+    func migrateAllPlain() async {
+        for secret in status.secrets where secret.mode == "plain" {
+            await migrateToEnclave(secret)
         }
     }
 
