@@ -312,3 +312,29 @@ class TestNoPromptGuarantee:
             profile_b, "GITHUB_TOKEN"
         )
         assert kc.session_account(profile_a, "GITHUB_TOKEN").endswith(":GITHUB_TOKEN")
+
+
+class TestSessionExpiry:
+    """`unlock` is worthless if you cannot see when it lapses."""
+
+    def test_expires_in_counts_down_and_clears(self, tmp_path, monkeypatch):
+        import kc_common as kc
+        store = {}
+        monkeypatch.setattr(kc, "kc_write", lambda s, a, v: store.__setitem__(a, v) or "")
+        monkeypatch.setattr(kc, "kc_read", lambda s, a, k=None: (store.get(a), "" if a in store else "missing"))
+        monkeypatch.setattr(kc, "kc_delete", lambda s, a, k=None: store.pop(a, None))
+
+        kc.session_write(tmp_path, "TOKEN", "v", 3600)
+        left = kc.session_expires_in(tmp_path, "TOKEN")
+        assert 3590 <= left <= 3600
+
+        kc.session_write(tmp_path, "GONE", "v", -1)          # already expired
+        assert kc.session_read(tmp_path, "GONE") == (None, "unlock session expired")
+        assert kc.session_expires_in(tmp_path, "GONE") is None   # reading it purged the record
+        assert kc.session_expires_in(tmp_path, "NEVER_STORED") is None
+
+    def test_human_delay_formats(self):
+        from kc_cli import _human_delay
+        assert _human_delay(27000) == "7h30m"
+        assert _human_delay(900) == "15m"
+        assert _human_delay(40) == "<1m"

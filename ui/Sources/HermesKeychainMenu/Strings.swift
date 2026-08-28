@@ -262,6 +262,7 @@ final class Loc: ObservableObject {
         "diag.present": "Present",
         "diag.missing": "Missing",
         "diag.lastStatus": "Last status",
+        "secrets.removeWarning": " will be removed from the Keychain, encrypted storage and any active session. This cannot be undone.",
     ]
 
     static let french: [String: String] = [
@@ -482,6 +483,7 @@ final class Loc: ObservableObject {
         "diag.present": "Présente",
         "diag.missing": "Absente",
         "diag.lastStatus": "Dernier état",
+        "secrets.removeWarning": " sera supprimé du trousseau, du stockage chiffré et de toute session active. Cette action est irréversible.",
     ]
 }
 

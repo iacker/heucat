@@ -248,8 +248,8 @@ def session_write(home_path: Path, env_name: str, value: str, ttl_seconds: int) 
     return kc_write(SESSION_SERVICE, account, SESSION_SPILL_PREFIX + spill.name)
 
 
-def session_read(home_path: Path, env_name: str) -> Tuple[Optional[str], str]:
-    """Returns (value, error). Expired/absent -> (None, reason)."""
+def _session_payload(home_path: Path, env_name: str) -> Tuple[Optional[dict], str]:
+    """Read and decode the session record. Expired records delete themselves."""
     account = session_account(home_path, env_name)
     raw, err = kc_read(SESSION_SERVICE, account)
     if raw is None:
@@ -263,16 +263,30 @@ def session_read(home_path: Path, env_name: str) -> Tuple[Optional[str], str]:
     try:
         payload = json.loads(raw)
         exp = int(payload["exp"])
-        value = payload["v"]
     except (ValueError, KeyError, TypeError):
         return None, "corrupt session record"
     if time.time() >= exp:
         _spill_path(home_path, env_name).unlink(missing_ok=True)
         kc_delete(SESSION_SERVICE, account)
         return None, "unlock session expired"
+    return payload, ""
+
+
+def session_read(home_path: Path, env_name: str) -> Tuple[Optional[str], str]:
+    """Returns (value, error). Expired/absent -> (None, reason)."""
+    payload, err = _session_payload(home_path, env_name)
+    if payload is None:
+        return None, err
+    value = payload["v"]
     if not isinstance(value, str):
         return None, "corrupt session record"
     return value, ""
+
+
+def session_expires_in(home_path: Path, env_name: str) -> Optional[int]:
+    """Seconds left on the unlock session, or None when there is no live one."""
+    payload, _ = _session_payload(home_path, env_name)
+    return None if payload is None else max(0, int(payload["exp"]) - int(time.time()))
 
 
 def session_clear(home_path: Path, env_names: List[str]) -> None:

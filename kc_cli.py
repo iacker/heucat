@@ -266,6 +266,14 @@ def cmd_lock(args) -> int:
     return 0
 
 
+def _human_delay(seconds: int) -> str:
+    """`27000` -> `7h30m`, `900` -> `15m`, `40` -> `<1m`."""
+    h, m = divmod(seconds // 60, 60)
+    if h:
+        return f"{h}h{m:02d}m"
+    return f"{m}m" if m else "<1m"
+
+
 def cmd_status(args) -> int:
     home = _home_path()
     raw_cfg = _load_cfg()
@@ -293,7 +301,14 @@ def cmd_status(args) -> int:
                 state = "NO CIPHERTEXT — run `hermes keychain store … --enclave`"
             else:
                 value, err = kc.session_read(home, item["env"])
-                state = "unlocked" if value else f"locked ({err})"
+                if value:
+                    # ponytail: a second keychain read on the status path only,
+                    # never on fetch. Fold it into session_read if status ever
+                    # gets slow with many secrets.
+                    left = kc.session_expires_in(home, item["env"])
+                    state = f"unlocked ({_human_delay(left)} left)" if left else "unlocked"
+                else:
+                    state = f"locked ({err})"
         print(f"  {item['env']:<28} {item['mode']:<8} {state}")
     for w in warnings:
         print(f"warning: {w}")

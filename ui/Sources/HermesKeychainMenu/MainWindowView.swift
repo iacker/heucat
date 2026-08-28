@@ -48,9 +48,15 @@ struct MainWindowView: View {
                 Task { await model.delete(secret) }
             }
         } message: { secret in
-            Text("\(secret.name) will be removed from the Keychain, encrypted storage and any active session. This cannot be undone.")
+            Text(secret.name + L("secrets.removeWarning"))
         }
         .task { if autoRefresh { await model.refresh() } }
+        // The session countdown would otherwise sit frozen at whatever it read
+        // on open. Refreshing on focus keeps it honest without a polling timer.
+        .onReceive(NotificationCenter.default.publisher(
+            for: NSApplication.didBecomeActiveNotification)) { _ in
+            if autoRefresh { Task { await model.refresh() } }
+        }
     }
 
     // MARK: Sidebar

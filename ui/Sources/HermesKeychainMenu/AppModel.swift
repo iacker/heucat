@@ -39,7 +39,17 @@ enum AppSection: String, CaseIterable, Identifiable {
 final class AppModel: ObservableObject {
     @AppStorage("hermesBinary") var hermesBinary = "~/.local/bin/hermes"
     @AppStorage("hermesHome") var hermesHome = "~/.hermes/profiles/ares"
-    @AppStorage("chthoniosBinary") var chthoniosBinary = "~/Library/Python/3.9/bin/chthonios"
+    @AppStorage("chthoniosBinary") var chthoniosBinary = AppModel.defaultChthonios
+
+    /// First install that actually exists. Hardcoding one path breaks the
+    /// Sealed Profiles page the day that interpreter is cleaned up.
+    static let defaultChthonios: String = [
+        "~/.hermes/hermes-agent/venv/bin/chthonios",
+        "~/.local/bin/chthonios",
+        "~/Library/Python/3.9/bin/chthonios",
+    ].first {
+        FileManager.default.isExecutableFile(atPath: NSString(string: $0).expandingTildeInPath)
+    } ?? "~/.local/bin/chthonios"
 
     @Published var status = KeychainStatus()
     @Published var isBusy = false
