@@ -266,9 +266,15 @@ class TestNoPromptGuarantee:
             stderr = b""
 
         def fake_run(argv, **kwargs):
-            captured["argv"] = argv
-            captured.update(kwargs)
-            return P()
+            # kc_write verifies its own write by reading back, so the fake has
+            # to behave like a real keychain: remember on add, replay on find.
+            if "add-generic-password" in argv:
+                captured["argv"] = argv
+                captured.update(kwargs)
+                captured["stored"] = kwargs.get("stdin_data", b"").split(b"\n")[0]
+            out = type("P", (), {"returncode": 0, "stderr": b"",
+                                 "stdout": captured.get("stored", b"") + b"\n"})
+            return out() if "find-generic-password" in argv else P()
 
         monkeypatch.setattr(kc, "run_cli", fake_run)
         secret = "sensitive-value-123"

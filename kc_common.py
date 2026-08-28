@@ -153,7 +153,14 @@ def kc_read(service: str, account: str, keychain: str = "") -> Tuple[Optional[st
 
 
 def kc_write(service: str, account: str, value: str, keychain: str = "") -> str:
-    """Upsert one generic password without exposing it in process argv."""
+    """Upsert one generic password without exposing it in process argv.
+
+    `security` truncates a prompted password at 128 characters and still exits
+    0, which silently corrupts anything longer (long OAuth tokens, session
+    records). Passing the value via -w/-X instead would put the secret in argv,
+    where `ps` can read it — worse. So we write via stdin, then read back and
+    verify; a short write is reported as an error rather than stored corrupt.
+    """
     # Apple documents `-w <password>` as insecure. Bare `-w` prompts twice;
     # feed both answers through stdin so process listings never reveal value.
     argv = [
@@ -170,6 +177,16 @@ def kc_write(service: str, account: str, value: str, keychain: str = "") -> str:
     if proc.returncode != 0:
         err = (proc.stderr or b"").decode("utf-8", "replace").strip()
         return err or f"security exited {proc.returncode}"
+    # Verify: never let a silent truncation look like success.
+    stored, read_err = kc_read(service, account, keychain)
+    if stored != value:
+        kc_delete(service, account, keychain)
+        if read_err:
+            return f"write verification failed: {read_err}"
+        return (
+            f"macOS truncated this value at {len(stored or '')} characters "
+            f"(sent {len(value)}); not stored"
+        )
     return ""
 
 
@@ -203,9 +220,32 @@ def session_account(home_path: Path, env_name: str) -> str:
     return f"{profile_id}:{env_name}"
 
 
+# `security` silently truncates a prompted password at 128 chars. Session
+# payloads (JSON-wrapped value + expiry) routinely exceed that for OAuth
+# tokens, so anything larger spills to a 0600 file beside the ciphertexts and
+# the Keychain item holds only a pointer. The file lives in the same directory
+# that already holds ciphertexts, so it inherits the same 0700 protection.
+SESSION_SPILL_PREFIX = "@spill:"
+_KC_VALUE_LIMIT = 128
+
+
+def _spill_path(home_path: Path, env_name: str) -> Path:
+    return secrets_dir(home_path) / f"{env_name}.session"
+
+
 def session_write(home_path: Path, env_name: str, value: str, ttl_seconds: int) -> str:
     payload = json.dumps({"v": value, "exp": int(time.time()) + int(ttl_seconds)})
-    return kc_write(SESSION_SERVICE, session_account(home_path, env_name), payload)
+    account = session_account(home_path, env_name)
+    spill = _spill_path(home_path, env_name)
+    if len(payload) <= _KC_VALUE_LIMIT:
+        spill.unlink(missing_ok=True)
+        return kc_write(SESSION_SERVICE, account, payload)
+    # Too long for the Keychain: write the payload to disk, point at it.
+    spill.parent.mkdir(parents=True, exist_ok=True)
+    spill.touch(mode=0o600, exist_ok=True)
+    spill.chmod(0o600)
+    spill.write_text(payload)
+    return kc_write(SESSION_SERVICE, account, SESSION_SPILL_PREFIX + spill.name)
 
 
 def session_read(home_path: Path, env_name: str) -> Tuple[Optional[str], str]:
@@ -214,6 +254,12 @@ def session_read(home_path: Path, env_name: str) -> Tuple[Optional[str], str]:
     raw, err = kc_read(SESSION_SERVICE, account)
     if raw is None:
         return None, "no unlock session"
+    if raw.startswith(SESSION_SPILL_PREFIX):
+        spill = _spill_path(home_path, env_name)
+        try:
+            raw = spill.read_text()
+        except OSError:
+            return None, "session file missing"
     try:
         payload = json.loads(raw)
         exp = int(payload["exp"])
@@ -221,6 +267,7 @@ def session_read(home_path: Path, env_name: str) -> Tuple[Optional[str], str]:
     except (ValueError, KeyError, TypeError):
         return None, "corrupt session record"
     if time.time() >= exp:
+        _spill_path(home_path, env_name).unlink(missing_ok=True)
         kc_delete(SESSION_SERVICE, account)
         return None, "unlock session expired"
     if not isinstance(value, str):
@@ -230,6 +277,7 @@ def session_read(home_path: Path, env_name: str) -> Tuple[Optional[str], str]:
 
 def session_clear(home_path: Path, env_names: List[str]) -> None:
     for name in env_names:
+        _spill_path(home_path, name).unlink(missing_ok=True)
         kc_delete(SESSION_SERVICE, session_account(home_path, name))
 
 
