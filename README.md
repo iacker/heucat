@@ -13,6 +13,47 @@ This is the runtime half of a pair. [hermes-chthonios](https://github.com/iacker
 seals a whole profile at rest. This plugin hands individual secrets to a running
 process.
 
+## Where it sits
+
+Hermes asks a chain of secret sources for its environment variables at startup.
+This plugin is one of them. Nothing else in Hermes changes.
+
+```mermaid
+flowchart LR
+    subgraph boot["Hermes startup"]
+        H["hermes CLI<br/>gateway, cron, subagents"]
+    end
+
+    subgraph sources["Secret sources"]
+        E[".env file"]
+        V["HashiCorp Vault"]
+        K["HEUCAT"]
+    end
+
+    subgraph mac["This Mac only"]
+        KC["Login Keychain<br/>plain mode"]
+        CT["Ciphertext files 0600<br/>enclave mode"]
+        SE(["Secure Enclave<br/>P256 key, never exported"])
+    end
+
+    H --> E & V & K
+    K --> KC
+    K --> CT
+    CT -.->|"decrypt needs<br/>Touch ID"| SE
+
+    style K fill:#5b4b8a,color:#fff
+    style SE fill:#1f6f5c,color:#fff
+    style CT fill:#f4f1ea
+    style KC fill:#f4f1ea
+    style boot fill:#fbfaf7,stroke:#d8d2c4
+    style sources fill:#fbfaf7,stroke:#d8d2c4
+    style mac fill:#fbfaf7,stroke:#d8d2c4
+```
+
+A source never writes to the environment itself. It returns values and Hermes
+decides precedence, so adding this plugin cannot break a variable you already
+set another way.
+
 ## What it actually does
 
 Hermes reads its API keys from environment variables at startup. Normally those
@@ -128,20 +169,50 @@ hermes keychain status
 
 ## How enclave mode works
 
+Three moments matter, and only one of them ever asks you for anything.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor You
+    participant CLI as hermes keychain
+    participant SE as Secure Enclave
+    participant Disk as Ciphertext 0600
+    participant KC as Session records
+
+    rect rgb(244, 241, 234)
+    Note over You,Disk: Storing, no prompt
+    You->>CLI: store NAME --enclave
+    CLI->>SE: generate P256 key, once
+    SE-->>CLI: public half only
+    CLI->>Disk: ChaChaPoly ciphertext
+    end
+
+    rect rgb(232, 240, 236)
+    Note over You,KC: Unlocking, one prompt for the whole batch
+    You->>CLI: unlock
+    CLI->>SE: decrypt every secret
+    SE-->>You: Touch ID
+    You-->>SE: fingerprint
+    SE-->>CLI: plaintexts
+    CLI->>KC: cache, TTL bounded
+    end
+
+    rect rgb(244, 241, 234)
+    Note over CLI,KC: Every Hermes startup, silent
+    CLI->>KC: read session records
+    KC-->>CLI: values, or a fast failure
+    end
 ```
-store --enclave          unlock (once)             fetch (every startup)
-     |                        |                          |
-     v                        v                          v
-P256 public key   ->   one Touch ID prompt   ->   session record   ->   env vars
-no prompt              for the whole batch        TTL bounded            silent
-```
+
+Encryption only needs the public half, so adding a secret never prompts.
+Decryption is the only step that needs the private key, and the Enclave releases
+it only after a live human authentication.
 
 `keygen` creates the P256 key inside the Secure Enclave, gated on user presence.
 Add `--strict-biometry` to bind it to the fingerprints enrolled right now, so
 enrolling a new finger invalidates it. The exported key blob is useless on any
 other machine.
-
-`encrypt` only needs the public key, so adding a secret never prompts.
 
 `unlock` authenticates once for the whole batch, then caches the plaintexts as
 TTL-bounded session records in the login keychain. They are encrypted at rest by
@@ -206,9 +277,14 @@ it ever appearing in `ps` output or shell history.
 ## Desktop app
 
 There is an optional SwiftUI app in [`ui/`](ui/). It shows source and per secret
-state, adds and deletes secrets, and runs unlock or lock without a terminal. It
-shells out to the same plugin CLI and pipes secret values over stdin, so nothing
-sensitive lands in process arguments.
+state, adds and deletes secrets, tests whether a key still answers, and runs
+unlock or lock without a terminal. It shells out to the same plugin CLI and pipes
+secret values over stdin, so nothing sensitive lands in process arguments.
+
+The interface ships in French and English, switchable live from the title bar or
+Settings without restarting. A How it works page explains the Enclave chain in
+plain language, for the times you have to justify this to someone who does not
+read Swift.
 
 It also has a Sealed Profiles section that reports Chthonios state next to the
 Keychain state. The two crypto engines stay separate on purpose. Only the
@@ -238,12 +314,38 @@ else means a Developer ID signature and notarization.
 
 ## Security model
 
+What each mode actually stops, and what it does not. Read the last column before
+you decide a key is safe.
+
+```mermaid
+flowchart TD
+    A["Attacker reads your disk<br/>backup, cloud sync, stolen Mac"] --> B{"Stored how?"}
+    B -->|".env file"| C["Plaintext, game over"]
+    B -->|"plain mode"| D["Keychain encrypted at rest<br/>needs your login session"]
+    B -->|"enclave mode"| E["Ciphertext only<br/>useless off this Mac"]
+
+    F["Process running as you<br/>npm postinstall, browser extension"] --> G{"Session open?"}
+    G -->|"no unlock yet"| H["Enclave secrets unreadable"]
+    G -->|"unlocked, within TTL"| I["Readable, same as plain<br/>this is the tradeoff"]
+
+    style C fill:#b5443a,color:#fff
+    style E fill:#1f6f5c,color:#fff
+    style H fill:#1f6f5c,color:#fff
+    style I fill:#c98a2b,color:#fff
+    style D fill:#f4f1ea
+```
+
+The amber box is the honest part. Once you unlock, a process running as you can
+read those values for the length of the TTL. That is the price of never
+prompting a cron job. `hermes keychain lock` closes it early.
+
 `fetch()` never raises, never prompts, and never writes to `os.environ`. Hermes
 owns precedence and application. This plugin only returns a result.
 
 Subprocess calls pass an argv list with a minimal allowlisted environment and
 stdin closed. `/usr/bin/security` therefore cannot prompt, and a locked keychain
-fails fast instead of hanging.
+fails fast instead of hanging. Secret values go over stdin, never in `argv`,
+because anything in `argv` is readable by `ps`.
 
 The Swift helper is about 200 lines in `helper/main.swift`. You can read the
 whole thing in one sitting, which was the point.
@@ -252,13 +354,22 @@ Enclave ciphertexts and the key blob live under `$HERMES_HOME/keychain/` at mode
 0600. Copying them to another Mac gets you nothing, because the private key
 cannot leave this machine's Secure Enclave.
 
-One design note worth recording: biometric Keychain ACLs would have been the
-obvious approach, and they do not work here. `SecAccessControl` biometric flags
-require the Data Protection keychain, which requires a paid Apple Developer
-application-identifier entitlement. An ad-hoc signed open source CLI cannot get
-one, and the attempt fails with `errSecMissingEntitlement`. Encrypting against an
-enclave key, the same approach age-plugin-se takes, gets the same guarantee
-without the entitlement.
+### Two findings worth recording
+
+**Biometric Keychain ACLs do not work for an open source CLI.**
+`SecAccessControl` biometric flags require the Data Protection keychain, which
+requires a paid Apple Developer application-identifier entitlement. An ad-hoc
+signed binary cannot get one, and the attempt fails with
+`errSecMissingEntitlement`. Encrypting against an enclave key, the same approach
+age-plugin-se takes, gets the same guarantee without the entitlement.
+
+**`/usr/bin/security` truncates a prompted password at 128 characters and still
+exits 0.** A long OAuth token was stored cut in half and surfaced later as a
+corrupt session record. Passing the value as an argument instead would put the
+secret in `argv` where `ps` reads it, which is worse. So writes now verify
+themselves by reading back, and a short write is reported instead of stored.
+Session payloads above the ceiling spill to a 0600 file. Pinned by
+`tests/test_long_values.py`.
 
 ## Tests
 
@@ -267,13 +378,17 @@ HERMES_AGENT_SRC=~/.hermes/hermes-agent \
   uv run --with pytest --with pyyaml --with rich python -m pytest tests/ -v
 ```
 
-33 tests. They are hermetic, so no real keychain or enclave is touched, and they
-include the upstream `SecretSourceConformance` kit.
+38 tests. Most are hermetic, so no real keychain or enclave is touched, and they
+include the upstream `SecretSourceConformance` kit. The long-value regression
+tests in `tests/test_long_values.py` do touch a scratch Keychain item, because
+the bug they pin only reproduces against the real `security` binary.
 
-The Swift side has its own check:
+The Swift side has its own check, plus a translation guard that fails if the
+French and English tables drift apart:
 
 ```bash
 cd ui && ./scripts/test.sh
+python3 ui/scripts/check-strings.py
 ```
 
 ## License

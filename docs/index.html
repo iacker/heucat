@@ -88,6 +88,29 @@
   .grid.two{grid-template-columns:1fr 1fr}
   @media(max-width:720px){.grid.two{grid-template-columns:1fr}}
 
+  /* threat model table */
+  table.threat{width:100%;border-collapse:collapse;font-size:14px}
+  table.threat th{text-align:left;font-family:var(--mono);font-size:11px;
+    letter-spacing:.09em;text-transform:uppercase;color:var(--ink-faint);
+    font-weight:500;padding:0 12px 10px 0;border-bottom:.7px solid var(--hairline)}
+  table.threat td{padding:13px 12px 13px 0;border-bottom:.7px solid var(--hairline);
+    color:var(--ink-soft);vertical-align:top}
+  table.threat tr:last-child td{border-bottom:none}
+  table.threat td:first-child{color:var(--ink);width:38%}
+  table.threat .ok{color:var(--verdigris);font-weight:500}
+  table.threat .warn{color:var(--amber);font-weight:500}
+  table.threat .bad{color:#B4453A;font-weight:500}
+  @media(max-width:720px){
+    table.threat,table.threat tbody,table.threat tr,table.threat td{display:block;width:auto}
+    table.threat thead{display:none}
+    table.threat tr{padding:12px 0;border-bottom:.7px solid var(--hairline)}
+    table.threat td{border:none;padding:2px 0}
+    table.threat td:first-child{width:auto;margin-bottom:6px;font-weight:500}
+    table.threat td:not(:first-child)::before{
+      content:attr(data-m);color:var(--ink-faint);font-family:var(--mono);
+      font-size:11px;margin-right:8px}
+  }
+
   /* apple components list */
   .comp{display:grid;grid-template-columns:auto 1fr;gap:18px;align-items:start;
     padding:22px 0;border-bottom:.7px solid var(--hairline)}
@@ -300,8 +323,7 @@
       <div class="plate">
         <h3>1 · Drop it in the plugins dir</h3>
         <pre><span class="c"># into your profile's plugins directory</span>
-git clone https://github.com/iacker/\
-  hermes-keychain-secretsource \
+git clone https://github.com/iacker/heucat \
   ~/.hermes/plugins/keychain-secretsource</pre>
         <h3>2 · Enable it in config.yaml</h3>
         <pre><span class="c"># the key is `keychain` — the manifest name,</span>
@@ -329,6 +351,50 @@ hermes keychain status</pre>
         Enclave helper compiles itself the first time you store an enclave secret; you need Xcode Command Line Tools
         (<code>xcode-select --install</code>).</p>
       </div>
+    </div>
+  </div>
+</section>
+
+<section id="threat" style="background:var(--paper-deep)">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow">Threat model</div>
+      <h2>What each mode actually stops</h2>
+    </div>
+    <div class="plate">
+      <table class="threat">
+        <thead>
+          <tr><th>If this happens</th><th>.env file</th><th>Plain</th><th>Enclave</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Your disk is read: backup, cloud sync, stolen Mac</td>
+            <td class="bad" data-m=".env">Plaintext</td>
+            <td class="ok" data-m="plain">Encrypted at rest</td>
+            <td class="ok" data-m="enclave">Ciphertext only</td>
+          </tr>
+          <tr>
+            <td>Ciphertext copied to another machine</td>
+            <td class="bad" data-m=".env">Works fine</td>
+            <td class="ok" data-m="plain">Useless</td>
+            <td class="ok" data-m="enclave">Useless</td>
+          </tr>
+          <tr>
+            <td>A process runs as you, before any unlock</td>
+            <td class="bad" data-m=".env"><code>cat</code> is enough</td>
+            <td class="warn" data-m="plain">Readable</td>
+            <td class="ok" data-m="enclave">Unreadable</td>
+          </tr>
+          <tr>
+            <td>A process runs as you, after unlock, within TTL</td>
+            <td class="bad" data-m=".env"><code>cat</code> is enough</td>
+            <td class="warn" data-m="plain">Readable</td>
+            <td class="warn" data-m="enclave">Readable</td>
+          </tr>
+        </tbody>
+      </table>
+      <p class="note">The last row is the honest one. Unlocking trades some of the guarantee for
+      never interrupting a cron job. Lock the session when you are done rather than waiting for the timeout.</p>
     </div>
   </div>
 </section>
