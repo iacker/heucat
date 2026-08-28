@@ -1,9 +1,37 @@
+<div align="center">
+
 # HEUCAT
 
-*Hardware Enclave Credential Authentication Tool.* Serve [Hermes Agent](https://github.com/NousResearch/hermes-agent) API keys from
-the macOS Keychain instead of a plaintext `.env` file. Secrets you care about
-more can sit behind Touch ID, encrypted with a key that never leaves the Secure
-Enclave.
+**H**ardware **E**nclave **C**redential **A**uthentication **T**ool
+
+Serve [Hermes Agent](https://github.com/NousResearch/hermes-agent) API keys from the macOS Keychain
+instead of a plaintext `.env` file.<br/>
+The ones that matter sit behind Touch ID, encrypted with a key that never leaves the Secure Enclave.
+
+[![macOS](https://img.shields.io/badge/macOS-12%2B-1B1D24?style=flat-square&logo=apple&logoColor=white)](https://www.apple.com/macos/)
+[![Apple silicon](https://img.shields.io/badge/Secure%20Enclave-Apple%20silicon-1F8B68?style=flat-square)](https://support.apple.com/guide/security/secure-enclave-sec59b0b31ff/web)
+[![Tests](https://img.shields.io/badge/tests-38%20passing-1F8B68?style=flat-square)](#tests)
+[![UI](https://img.shields.io/badge/UI-SwiftUI%20·%20FR%20%2F%20EN-514FB3?style=flat-square&logo=swift&logoColor=white)](#desktop-app)
+[![License](https://img.shields.io/badge/license-MIT-676B76?style=flat-square)](#license)
+
+[Documentation site](https://iacker.github.io/heucat/) · [Install](#install) · [Threat model](#security-model) · [Desktop app](#desktop-app)
+
+</div>
+
+---
+
+## Where it sits
+
+Hermes asks a chain of secret sources for its environment variables at startup.
+HEUCAT is one of them. Nothing else in Hermes changes.
+
+<div align="center">
+  <img src="docs/assets/architecture.svg" alt="Hermes asks its secret sources at startup. HEUCAT reads plain values from the login Keychain and enclave values from ciphertext files, whose key never leaves the Secure Enclave and is released only after a Touch ID authentication." width="100%">
+</div>
+
+A source never writes to the environment itself. It returns values and Hermes
+decides precedence, so adding this plugin cannot break a variable you already
+set another way.
 
 The repo and the plugin still answer to the name `keychain` internally, so
 nothing in your config changes. HEUCAT is the product name the app and these
@@ -13,46 +41,20 @@ This is the runtime half of a pair. [hermes-chthonios](https://github.com/iacker
 seals a whole profile at rest. This plugin hands individual secrets to a running
 process.
 
-## Where it sits
+## Contents
 
-Hermes asks a chain of secret sources for its environment variables at startup.
-This plugin is one of them. Nothing else in Hermes changes.
-
-```mermaid
-flowchart LR
-    subgraph boot["Hermes startup"]
-        H["hermes CLI<br/>gateway, cron, subagents"]
-    end
-
-    subgraph sources["Secret sources"]
-        E[".env file"]
-        V["HashiCorp Vault"]
-        K["HEUCAT"]
-    end
-
-    subgraph mac["This Mac only"]
-        KC["Login Keychain<br/>plain mode"]
-        CT["Ciphertext files 0600<br/>enclave mode"]
-        SE(["Secure Enclave<br/>P256 key, never exported"])
-    end
-
-    H --> E & V & K
-    K --> KC
-    K --> CT
-    CT -.->|"decrypt needs<br/>Touch ID"| SE
-
-    style K fill:#5b4b8a,color:#fff
-    style SE fill:#1f6f5c,color:#fff
-    style CT fill:#f4f1ea
-    style KC fill:#f4f1ea
-    style boot fill:#fbfaf7,stroke:#d8d2c4
-    style sources fill:#fbfaf7,stroke:#d8d2c4
-    style mac fill:#fbfaf7,stroke:#d8d2c4
-```
-
-A source never writes to the environment itself. It returns values and Hermes
-decides precedence, so adding this plugin cannot break a variable you already
-set another way.
+| | |
+|---|---|
+| [What it actually does](#what-it-actually-does) | the four moving parts |
+| [Two modes](#two-modes) | plain for daemons, enclave for the rest |
+| [Install](#install) | clone, enable, store |
+| [How enclave mode works](#how-enclave-mode-works) | the three moments, one prompt |
+| [Headless and daemon setups](#headless-and-daemon-setups) | launchd at boot |
+| [Config reference](#config-reference) | every key under `secrets.keychain` |
+| [CLI](#cli) | the six commands |
+| [Desktop app](#desktop-app) | optional SwiftUI front end, FR and EN |
+| [Security model](#security-model) | what each mode stops, and what it does not |
+| [Tests](#tests) | 38, and how to run them |
 
 ## What it actually does
 

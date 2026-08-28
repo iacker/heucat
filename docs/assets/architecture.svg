@@ -1,0 +1,161 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 640" width="1200" height="640"
+     role="img" aria-labelledby="t d">
+  <title id="t">How HEUCAT serves a secret to Hermes</title>
+  <desc id="d">Hermes asks a chain of secret sources at startup. HEUCAT reads plain values
+  from the login Keychain and enclave values from ciphertext files, whose key never leaves
+  the Secure Enclave and is released only after a Touch ID authentication.</desc>
+
+  <!-- ponytail: one file, not a light/dark pair. The panel paints its own paper
+       background, so it reads correctly on GitHub's dark theme too. -->
+
+  <defs>
+    <style>
+      .serif { font-family: Georgia, "Times New Roman", serif; }
+      .mono  { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+      .ttl   { font-size: 21px; font-weight: 600; fill: #1B1D24; }
+      .sub   { font-size: 13.5px; fill: #676B76; }
+      .tag   { font-size: 10.5px; letter-spacing: .1em; fill: #9CA0AA; }
+      .lbl   { font-size: 12px; fill: #676B76; }
+      .onink { fill: #FFFFFF; }
+    </style>
+
+    <linearGradient id="lapis" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#5B58C4"/>
+      <stop offset="1" stop-color="#454399"/>
+    </linearGradient>
+    <linearGradient id="verd" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#249A74"/>
+      <stop offset="1" stop-color="#186F55"/>
+    </linearGradient>
+
+    <filter id="soft" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="5" stdDeviation="9" flood-color="#1B1D24" flood-opacity=".10"/>
+    </filter>
+
+    <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5"
+            markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,1 L9,5 L0,9 z" fill="#C3BFB2"/>
+    </marker>
+    <marker id="arLive" viewBox="0 0 10 10" refX="9" refY="5"
+            markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,1 L9,5 L0,9 z" fill="#9C98D0"/>
+    </marker>
+  </defs>
+
+  <!-- paper -->
+  <rect width="1200" height="640" rx="20" fill="#FBFAF7"/>
+  <rect x="1" y="1" width="1198" height="638" rx="19" fill="none" stroke="#E6E1D6"/>
+
+  <text x="46" y="52" class="mono tag">HEUCAT · SECRET FLOW AT STARTUP</text>
+  <line x1="46" y1="68" x2="1154" y2="68" stroke="#E6E1D6"/>
+
+  <!-- ============ paths (drawn under the boxes) ============ -->
+  <g fill="none" stroke-linecap="round">
+    <!-- alternative sources, deliberately faded: HEUCAT is one of several -->
+    <path id="pEnv"   d="M300,330 C352,330 372,167 420,167" stroke="#DAD5C8" stroke-width="1.6" marker-end="url(#ar)"/>
+    <path id="pVault" d="M300,370 C352,370 372,547 420,547" stroke="#DAD5C8" stroke-width="1.6" marker-end="url(#ar)"/>
+
+    <!-- the live route -->
+    <path id="pMain"  d="M300,350 L392,350"                  stroke="#B9B5D8" stroke-width="2.2" marker-end="url(#arLive)"/>
+    <path id="pPlain" d="M640,330 C722,330 742,170 812,170"  stroke="#B9B5D8" stroke-width="2.2" marker-end="url(#arLive)"/>
+    <path id="pEnc"   d="M640,370 C722,370 742,350 812,350"  stroke="#B9B5D8" stroke-width="2.2" marker-end="url(#arLive)"/>
+  </g>
+
+  <!-- travelling pulses: a value moving from Hermes into storage -->
+  <g fill="#514FB3">
+    <circle r="4.5">
+      <animateMotion dur="3.2s" repeatCount="indefinite" begin="0s">
+        <mpath href="#pMain"/>
+      </animateMotion>
+      <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;.15;.85;1"
+               dur="3.2s" repeatCount="indefinite" begin="0s"/>
+    </circle>
+    <circle r="4.5">
+      <animateMotion dur="3.2s" repeatCount="indefinite" begin="1.05s">
+        <mpath href="#pPlain"/>
+      </animateMotion>
+      <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;.15;.85;1"
+               dur="3.2s" repeatCount="indefinite" begin="1.05s"/>
+    </circle>
+    <circle r="4.5">
+      <animateMotion dur="3.2s" repeatCount="indefinite" begin="1.05s">
+        <mpath href="#pEnc"/>
+      </animateMotion>
+      <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;.15;.85;1"
+               dur="3.2s" repeatCount="indefinite" begin="1.05s"/>
+    </circle>
+  </g>
+
+  <!-- ============ Hermes ============ -->
+  <g filter="url(#soft)">
+    <rect x="60" y="290" width="240" height="120" rx="14" fill="#FFFFFF" stroke="#E6E1D6"/>
+  </g>
+  <text x="84" y="326" class="mono tag">EVERY PROCESS</text>
+  <text x="84" y="356" class="serif ttl">Hermes</text>
+  <text x="84" y="382" class="serif sub">CLI · gateway · cron · subagents</text>
+
+  <!-- ============ alternative sources ============ -->
+  <g>
+    <rect x="420" y="140" width="200" height="54" rx="27" fill="#F4F2ED" stroke="#E6E1D6"/>
+    <text x="520" y="173" class="mono" font-size="13" fill="#9CA0AA" text-anchor="middle">.env file</text>
+
+    <rect x="420" y="520" width="200" height="54" rx="27" fill="#F4F2ED" stroke="#E6E1D6"/>
+    <text x="520" y="553" class="mono" font-size="13" fill="#9CA0AA" text-anchor="middle">HashiCorp Vault</text>
+  </g>
+
+  <!-- ============ HEUCAT ============ -->
+  <g filter="url(#soft)">
+    <rect x="400" y="290" width="240" height="120" rx="14" fill="url(#lapis)"/>
+  </g>
+  <text x="424" y="326" class="mono tag" fill="#C9C7EE">SECRET SOURCE</text>
+  <text x="424" y="356" class="serif ttl onink">HEUCAT</text>
+  <text x="424" y="382" class="serif" font-size="13.5" fill="#D6D4F2">returns values · never writes env</text>
+
+  <!-- ============ storage: plain ============ -->
+  <g filter="url(#soft)">
+    <rect x="820" y="120" width="320" height="100" rx="14" fill="#FFFFFF" stroke="#E6E1D6"/>
+  </g>
+  <rect x="844" y="140" width="52" height="20" rx="10" fill="#EFEDE6"/>
+  <text x="870" y="154" class="mono" font-size="10.5" fill="#676B76" text-anchor="middle">plain</text>
+  <text x="844" y="188" class="serif ttl">Login Keychain</text>
+  <text x="844" y="208" class="serif sub">encrypted at rest · needs your session</text>
+
+  <!-- ============ storage: enclave ============ -->
+  <g filter="url(#soft)">
+    <rect x="820" y="300" width="320" height="100" rx="14" fill="#FFFFFF" stroke="#E6E1D6"/>
+  </g>
+  <rect x="844" y="320" width="66" height="20" rx="10" fill="#E6F1EC"/>
+  <text x="877" y="334" class="mono" font-size="10.5" fill="#1F8B68" text-anchor="middle">enclave</text>
+  <text x="844" y="368" class="serif ttl">Ciphertext 0600</text>
+  <text x="844" y="388" class="serif sub">useless on any other Mac</text>
+
+  <!-- gate: decryption needs a live human -->
+  <g fill="none">
+    <path d="M980,400 L980,470" stroke="#C9A25C" stroke-width="2" stroke-dasharray="5 5">
+      <animate attributeName="stroke-dashoffset" values="20;0" dur="1.6s" repeatCount="indefinite"/>
+    </path>
+    <path d="M974,464 L980,472 L986,464" stroke="#C9A25C" stroke-width="2" stroke-linecap="round"/>
+  </g>
+  <text x="998" y="443" class="serif" font-size="12.5" fill="#B47A1D">decrypt needs Touch ID</text>
+
+  <!-- ============ Secure Enclave ============ -->
+  <g filter="url(#soft)">
+    <rect x="820" y="480" width="320" height="106" rx="14" fill="url(#verd)"/>
+  </g>
+  <!-- pulsing ring: the key is alive in silicon, it never leaves -->
+  <g transform="translate(1092,533)">
+    <circle r="17" fill="none" stroke="#8FD9BF" stroke-width="1.6" opacity=".9"/>
+    <circle r="17" fill="none" stroke="#8FD9BF" stroke-width="1.4">
+      <animate attributeName="r" values="17;29" dur="2.6s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values=".55;0" dur="2.6s" repeatCount="indefinite"/>
+    </circle>
+    <circle r="5.5" fill="#D6F2E6"/>
+  </g>
+  <text x="844" y="516" class="mono tag" fill="#A6E0C8">APPLE SILICON</text>
+  <text x="844" y="546" class="serif ttl onink">Secure Enclave</text>
+  <text x="844" y="568" class="serif" font-size="13.5" fill="#C6EBDA">P256 key · cannot be exported</text>
+
+  <!-- footer note -->
+  <line x1="46" y1="600" x2="1154" y2="600" stroke="#E6E1D6"/>
+  <text x="46" y="622" class="serif lbl">A source returns values. Hermes owns precedence, so adding HEUCAT cannot break a variable you already set.</text>
+</svg>
