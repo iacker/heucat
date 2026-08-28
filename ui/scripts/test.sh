@@ -8,3 +8,8 @@ swiftc \
   -o "$BIN"
 "$BIN"
 rm -f "$BIN"
+
+# The Swift enum and chthonios' cli.py describe the same exit codes; a rename on
+# one side would silently mislabel every failure in the UI.
+python3 "$ROOT/scripts/check-exit-codes.py"
+python3 "$ROOT/scripts/check-strings.py"

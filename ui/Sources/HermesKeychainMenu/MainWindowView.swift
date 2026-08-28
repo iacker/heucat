@@ -730,38 +730,59 @@ struct SealedProfilesView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
+        // A ScrollView renders nothing in the offscreen snapshot path, so
+        // captures of this page came out blank. Same escape hatch as Overview.
+        Group {
+            if snapshotMode { content } else { ScrollView { content } }
+        }
+        .sheet(item: $sheet) { request in
+            ProfileSecretSheet(profile: request.profile, action: request.action)
+                .environmentObject(model)
+        }
+    }
+
+    private var content: some View {
+        VStack(alignment: .leading, spacing: 20) {
             pageHeader(L("profiles.title"), L("profiles.subtitle2"))
+            // The dashboard, not a description of the engine: how many profiles
+            // are sealed, which one this app is driving, and whether chthonios
+            // can actually run. The engine's own name belongs in the footer.
             Plate {
-                HStack(spacing: 20) {
-                    ZStack {
-                        Circle()
-                            .stroke((model.chthoniosAvailable ? Theme.lapis : Theme.amber).opacity(0.16), lineWidth: 0.7)
-                            .frame(width: 84, height: 84)
-                        Image(systemName: "externaldrive.badge.lock")
-                            .font(.system(size: 34, weight: .ultraLight))
-                            .foregroundStyle(model.chthoniosAvailable ? Theme.lapis : Theme.amber)
+                VStack(alignment: .leading, spacing: 16) {
+                    HStack(alignment: .top, spacing: 0) {
+                        tally(model.sealedCount, L("profiles.tallySealed"),
+                              "lock.fill", Theme.verdigris)
+                        tallyDivider
+                        tally(model.openCount, L("profiles.tallyOpen"),
+                              "lock.open.fill", Theme.amber)
+                        tallyDivider
+                        tally(model.unmanagedCount, L("profiles.tallyUnmanaged"),
+                              "circle.dashed", Theme.inkFaint)
+                        Spacer(minLength: 12)
+                        Button(L("app.refresh")) { Task { await model.refreshChthonios() } }
+                            .buttonStyle(QuietButtonStyle())
                     }
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(verbatim: "Chthonios")
-                            .font(Theme.serif(19, weight: .semibold))
-                            .foregroundStyle(Theme.ink)
-                        Text(model.chthoniosSummary)
-                            .font(Theme.serif(13))
+                    Rectangle().fill(Theme.hairline).frame(height: 0.7)
+                    HStack(spacing: 8) {
+                        Image(systemName: "person.crop.circle")
+                            .font(.system(size: 11))
+                            .foregroundStyle(Theme.lapis)
+                        Text(L("profiles.activeIs"))
+                            .font(Theme.serif(12))
                             .foregroundStyle(Theme.inkSoft)
-                        HStack(spacing: 5) {
-                            Circle()
-                                .fill(model.chthoniosAvailable ? Theme.verdigris : Theme.amber)
-                                .frame(width: 5, height: 5)
-                            Text(model.chthoniosAvailable ? L("profiles.engineOn") : L("profiles.engineOff"))
-                                .font(.system(size: 11))
-                                .foregroundStyle(model.chthoniosAvailable ? Theme.verdigris : Theme.amber)
-                        }
+                        Text(model.activeProfile)
+                            .font(.system(size: 11, weight: .medium, design: .monospaced))
+                            .foregroundStyle(Theme.ink)
+                        Spacer()
+                        Circle()
+                            .fill(model.chthoniosAvailable ? Theme.verdigris : Theme.amber)
+                            .frame(width: 5, height: 5)
+                        Text(model.chthoniosAvailable ? L("profiles.engineOn")
+                                                      : L("profiles.engineOff"))
+                            .font(.system(size: 11))
+                            .foregroundStyle(model.chthoniosAvailable ? Theme.verdigris
+                                                                      : Theme.amber)
                     }
-                    Spacer()
-                    Button(L("app.refresh")) { Task { await model.refreshChthonios() } }
-                        .buttonStyle(QuietButtonStyle())
                 }
             }
 
@@ -791,13 +812,34 @@ struct SealedProfilesView: View {
                 .foregroundStyle(Theme.inkSoft)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: 620, alignment: .leading)
+        }
+        .padding(30)
+    }
+
+    private var tallyDivider: some View {
+        Rectangle().fill(Theme.hairline).frame(width: 0.7, height: 34)
+            .padding(.horizontal, 18)
+    }
+
+    /// One number and what it counts. Zero is shown greyed rather than hidden:
+    /// "0 sealed" is the most important thing this page can say.
+    private func tally(_ count: Int, _ label: String,
+                       _ icon: String, _ tint: Color) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text("\(count)")
+                .font(Theme.serif(27, weight: .semibold))
+                .foregroundStyle(count == 0 ? Theme.inkFaint : tint)
+            HStack(spacing: 4) {
+                Image(systemName: icon)
+                    .font(.system(size: 9))
+                    .foregroundStyle(count == 0 ? Theme.inkFaint : tint)
+                Text(label)
+                    .font(.system(size: 10))
+                    .foregroundStyle(Theme.inkSoft)
             }
-            .padding(30)
         }
-        .sheet(item: $sheet) { request in
-            ProfileSecretSheet(profile: request.profile, action: request.action)
-                .environmentObject(model)
-        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(count) \(label)")
     }
 
     private func boundaryRow(_ icon: String, _ text: String) -> some View {
@@ -896,22 +938,27 @@ struct ProfileRow: View {
                     case .unmanaged:
                         Button(L("profiles.seal")) { onSecretNeeded(.seal) }
                             .buttonStyle(QuietButtonStyle())
+                            .accessibilityLabel("\(L("profiles.seal")) \(profile.name)")
                     case .sealed:
                         Button(L("profiles.unseal")) { onSecretNeeded(.unseal) }
                             .buttonStyle(QuietButtonStyle())
+                            .accessibilityLabel("\(L("profiles.unseal")) \(profile.name)")
                         Button(L("profiles.verify")) {
                             Task { await model.verifyProfile(profile) }
                         }
                         .buttonStyle(QuietButtonStyle())
+                        .accessibilityLabel("\(L("profiles.verify")) \(profile.name)")
                     case .open:
                         Button(L("profiles.lock")) {
                             Task { await model.lockProfile(profile) }
                         }
                         .buttonStyle(QuietButtonStyle())
+                        .accessibilityLabel("\(L("profiles.lock")) \(profile.name)")
                         Button(L("profiles.verify")) {
                             Task { await model.verifyProfile(profile) }
                         }
                         .buttonStyle(QuietButtonStyle())
+                        .accessibilityLabel("\(L("profiles.verify")) \(profile.name)")
                     }
                 }
                 .disabled(model.isBusy)

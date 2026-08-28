@@ -191,6 +191,15 @@ final class Loc: ObservableObject {
         "profiles.reuseKeyFrom": "Your YubiKey is already enrolled for %@ — the same key can open this profile.",
         "profiles.useSameKey": "Use the same key",
         "profiles.notInstalled": "Chthonios is not installed",
+        "profiles.tallySealed": "sealed",
+        "profiles.tallyOpen": "open",
+        "profiles.tallyUnmanaged": "unmanaged",
+        "profiles.activeIs": "This app is driving",
+
+        // Failures, keyed off exit codes rather than message text.
+        "err.wrongSecret": "Wrong passphrase — the profile stays sealed.",
+        "err.keyFailed": "The YubiKey did not answer: check it is plugged in, the PIN is right, and touch it when it blinks.",
+        "err.missingDependency": "age and age-plugin-fido2-hmac must be installed for YubiKey sealing.",
 
         // Diagnostics
         "diag.title": "Diagnostics",
@@ -447,6 +456,15 @@ final class Loc: ObservableObject {
         "profiles.reuseKeyFrom": "Votre YubiKey est déjà enrôlée pour %@ — la même clé peut ouvrir ce profil.",
         "profiles.useSameKey": "Utiliser la même clé",
         "profiles.notInstalled": "Chthonios n'est pas installé",
+        "profiles.tallySealed": "scellés",
+        "profiles.tallyOpen": "ouverts",
+        "profiles.tallyUnmanaged": "non gérés",
+        "profiles.activeIs": "Cette application pilote",
+
+        // Échecs, identifiés par code de sortie plutôt que par le texte.
+        "err.wrongSecret": "Phrase secrète incorrecte — le profil reste scellé.",
+        "err.keyFailed": "La YubiKey n'a pas répondu : vérifiez qu'elle est branchée, que le PIN est bon, et touchez-la quand elle clignote.",
+        "err.missingDependency": "age et age-plugin-fido2-hmac doivent être installés pour sceller sur YubiKey.",
 
         // Diagnostics
         "diag.title": "Diagnostic",

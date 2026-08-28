@@ -14,6 +14,8 @@ struct ProfileSecretSheet: View {
     @State private var secret = ""
     @State private var confirmation = ""
     @State private var useFIDO2 = false
+    /// Why the last attempt failed, shown in the sheet itself.
+    @State private var failure: String?
 
     enum Action { case seal, unseal }
 
@@ -148,6 +150,16 @@ struct ProfileSecretSheet: View {
                         .font(.caption)
                         .foregroundStyle(Theme.inkSoft)
                 }
+
+                // A failure used to land in the status bar behind this sheet,
+                // so a wrong passphrase looked like nothing happening at all.
+                if let failure {
+                    Label(failure, systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(Theme.amber)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .transition(.opacity)
+                }
             }
             .padding(20)
 
@@ -169,6 +181,7 @@ struct ProfileSecretSheet: View {
 
     private func submit() {
         Task {
+            failure = nil
             let ok: Bool
             switch action {
             case .seal:
@@ -176,7 +189,15 @@ struct ProfileSecretSheet: View {
             case .unseal:
                 ok = await model.unseal(profile, secret: secret)
             }
-            if ok { dismiss() }
+            if ok {
+                dismiss()
+            } else {
+                failure = model.message
+                // Keep the sheet open so the user can retry, but never leave a
+                // rejected secret sitting in the field.
+                secret = ""
+                confirmation = ""
+            }
         }
     }
 }

@@ -54,6 +54,9 @@ final class AppModel: ObservableObject {
     @Published var status = KeychainStatus()
     @Published var isBusy = false
     @Published var message = L("msg.ready")
+    /// Exit code of the last chthonios command, so views can style a failure
+    /// (and tell a wrong secret from a missing profile) without reading prose.
+    @Published var lastOutcome: ChthoniosOutcome = .ok
     @Published var lastUpdated: Date?
     @Published var selectedSection: AppSection? = .overview
     @Published var showingAddSecret = false
@@ -70,6 +73,10 @@ final class AppModel: ObservableObject {
     // Every number the dashboard shows is computed from real CLI status output.
     // Nothing here is decorative: an empty vault reports zero rather than a
     // flattering placeholder.
+
+    var sealedCount: Int { profiles.filter { $0.state == .sealed }.count }
+    var openCount: Int { profiles.filter { $0.state == .open }.count }
+    var unmanagedCount: Int { profiles.filter { $0.state == .unmanaged }.count }
 
     var plainCount: Int { status.secrets.filter { $0.mode == "plain" }.count }
     var enclaveCount: Int { status.secrets.filter { $0.mode == "enclave" }.count }
@@ -146,7 +153,17 @@ final class AppModel: ObservableObject {
             let ok = result.exitCode == 0
             chthoniosAvailable = ok
             chthoniosSummary = ChthoniosStatus.parse(result.output, ok: ok).label
+            // Order by what the user acts on: the profile this app drives, then
+            // the ones chthonios manages, then the untouched rest. Alphabetical
+            // order buries the active profile in the middle of the list.
             profiles = ChthoniosStatus.rows(result.output, ok: ok)
+                .sorted { a, b in
+                    let rank = { (p: ProfileStatus) -> Int in
+                        if p.name == self.activeProfile { return 0 }
+                        return p.state == .unmanaged ? 2 : 1
+                    }
+                    return rank(a) == rank(b) ? a.name < b.name : rank(a) < rank(b)
+                }
         } catch {
             chthoniosAvailable = false
             chthoniosSummary = error.localizedDescription
@@ -192,10 +209,36 @@ final class AppModel: ObservableObject {
                                activity: L("msg.enrolling") + " \(profile.name)…")
     }
 
+    /// What chthonios reports back, by exit code rather than by message text.
+    /// Prose changes with wording and does not survive translation; a number
+    /// does. Codes are defined in chthonios/cli.py.
+    enum ChthoniosOutcome: Int32 {
+        case ok = 0
+        case error = 1
+        case wrongSecret = 10
+        case keyFailed = 11
+        case badState = 12
+        case notFound = 13
+        case missingDependency = 14
+
+        /// Localisation key for the cases worth explaining in our own words.
+        /// `nil` means the command's own last line says it better.
+        /// (Returns the key, not the text: this enum is not main-actor bound.)
+        var explanationKey: String? {
+            switch self {
+            case .wrongSecret: "err.wrongSecret"
+            case .keyFailed: "err.keyFailed"
+            case .missingDependency: "err.missingDependency"
+            default: nil
+            }
+        }
+    }
+
     /// Run one chthonios subcommand, feeding stdin when a secret is needed.
     /// `seal`/`unseal` read the passphrase from stdin (getpass falls back to it
     /// when there is no TTY); `lock`/`verify` need nothing. `seal` asks twice,
     /// hence `confirm`.
+    @discardableResult
     func runChthonios(_ command: [String], secret: String? = nil, confirm: Bool = false,
                       activity: String) async -> Bool {
         guard !isBusy else { return false }
@@ -207,17 +250,15 @@ final class AppModel: ObservableObject {
                 Data((confirm ? "\(pass)\n\(pass)\n" : "\(pass)\n").utf8)
             }
             let result = try await chthoniosRunner.run(command, stdinData: stdin)
-            // chthonios exits 0 on a wrong passphrase, so trust the text too.
-            let out = result.output.lowercased()
-            let failed = result.exitCode != 0
-                || out.contains("wrong passphrase")
-                || out.contains("failed")
-                || out.contains("not found")
-                || out.contains("do not match")
-            message = failed ? lastLine(result.output) : activity + " " + L("msg.done")
+            let outcome = ChthoniosOutcome(rawValue: result.exitCode) ?? .error
+            lastOutcome = outcome
+            message = outcome == .ok
+                ? activity + " " + L("msg.done")
+                : (outcome.explanationKey.map { L($0) } ?? lastLine(result.output))
             await refreshChthonios()
-            return !failed
+            return outcome == .ok
         } catch {
+            lastOutcome = .error
             message = error.localizedDescription
             return false
         }
