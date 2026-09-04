@@ -5,15 +5,12 @@ jobs:
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/checkout@v4
-        with:
-          repository: NousResearch/hermes-agent
-          path: hermes-agent
+      # Cloned beside the repo, not inside it: a nested hermes-agent/tests/
+      # makes pytest pick the wrong rootdir and 'agent' stops importing.
+      - run: git clone --depth 1 https://github.com/NousResearch/hermes-agent ../hermes-agent
       - uses: astral-sh/setup-uv@v5
-      - name: debug
-        run: ls hermes-agent/agent | head; uv run python -c 'import sys;sys.path.insert(0,"hermes-agent");import agent;print(agent.__file__)'
       - name: plugin tests
-        run: HERMES_AGENT_SRC=$PWD/hermes-agent uv run --with pytest --with pyyaml --with rich python -m pytest tests -q
+        run: HERMES_AGENT_SRC=$PWD/../hermes-agent uv run --with pytest --with pyyaml --with rich python -m pytest tests -q
       - name: helper builds
         run: bash helper/build.sh
       - name: app builds and self-tests
