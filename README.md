@@ -32,7 +32,17 @@ hermes keychain store OPENROUTER_API_KEY
 ```
 
 Add `--app` to `install.sh` for the menu-bar app (about two minutes of Swift
-compile). Then `hermes keychain status` shows what is stored. Everything below
+compile), or grab the prebuilt one from the
+[latest release](https://github.com/iacker/heucat/releases/latest). It is ad-hoc
+signed, not notarized, so macOS quarantines it once:
+
+```bash
+unzip HEUCAT-Keychain.zip -d /Applications
+xattr -dr com.apple.quarantine "/Applications/HEUCAT Keychain.app"
+open "/Applications/HEUCAT Keychain.app"
+```
+
+Then `hermes keychain status` shows what is stored. Everything below
 explains why it is built this way; you do not need it to use it.
 
 ## Where it sits
