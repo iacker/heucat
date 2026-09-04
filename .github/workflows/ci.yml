@@ -10,6 +10,8 @@ jobs:
           repository: NousResearch/hermes-agent
           path: hermes-agent
       - uses: astral-sh/setup-uv@v5
+      - name: debug
+        run: ls hermes-agent/agent | head; uv run python -c 'import sys;sys.path.insert(0,"hermes-agent");import agent;print(agent.__file__)'
       - name: plugin tests
         run: HERMES_AGENT_SRC=$PWD/hermes-agent uv run --with pytest --with pyyaml --with rich python -m pytest tests -q
       - name: helper builds
