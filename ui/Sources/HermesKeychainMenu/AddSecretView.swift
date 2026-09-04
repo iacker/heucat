@@ -79,7 +79,10 @@ struct AddSecretView: View {
                 Button(L(isUpdate ? "add.update" : "add.save")) { save() }.buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction).disabled(!canSave)
             }.padding(18)
         }.frame(width: 560, height: 650)
-        .onAppear { if isUpdate { name = model.prefillName } }
+        .onAppear {
+            if isUpdate { name = model.prefillName }
+            protection = model.prefillEnclave ? .enclave : .keychain
+        }
     }
 
     private func save() {
@@ -88,11 +91,11 @@ struct AddSecretView: View {
         confirmation = ""
         Task {
             let ok = await model.store(name: name, value: secretValue, enclave: protection == .enclave, service: service, account: account)
-            if ok { model.prefillName = ""; dismiss() } else { error = model.message }
+            if ok { model.prefillName = ""; model.prefillEnclave = true; dismiss() } else { error = model.message }
         }
     }
 
     private func clearAndDismiss() {
-        value = ""; confirmation = ""; model.prefillName = ""; dismiss()
+        value = ""; confirmation = ""; model.prefillName = ""; model.prefillEnclave = true; dismiss()
     }
 }

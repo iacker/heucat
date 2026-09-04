@@ -27,6 +27,7 @@ struct MainWindowView: View {
                     case .sessions: SessionsView()
                     case .profiles: SealedProfilesView()
                     case .howitworks: HowItWorksView()
+                    case .tutorial: TutorialView()
                     case .diagnostics: DiagnosticsView()
                     }
                 }
@@ -37,7 +38,10 @@ struct MainWindowView: View {
         }
         .background(MarbleBackground())
         .frame(minWidth: 1060, minHeight: 700)
-        .sheet(isPresented: $model.showingAddSecret) { AddSecretView() }
+        .sheet(isPresented: $model.showingAddSecret, onDismiss: {
+            model.prefillName = ""
+            model.prefillEnclave = true
+        }) { AddSecretView() }
         .alert(L("secrets.confirmRemove"), isPresented: Binding(
             get: { model.pendingDeletion != nil },
             set: { if !$0 { model.pendingDeletion = nil } }
@@ -1168,6 +1172,7 @@ struct SecretRow: View {
                         }
                         Button(L("secrets.updateValue"), systemImage: "arrow.triangle.2.circlepath") {
                             model.prefillName = secret.name
+                            model.prefillEnclave = secret.mode == "enclave"
                             model.showingAddSecret = true
                         }
                         if secret.mode == "plain" {

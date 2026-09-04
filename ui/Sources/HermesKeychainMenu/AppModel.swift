@@ -8,6 +8,7 @@ enum AppSection: String, CaseIterable, Identifiable {
     case sessions = "Sessions"
     case profiles = "Sealed Profiles"
     case howitworks = "How it works"
+    case tutorial = "Tutorial"
     case diagnostics = "Diagnostics"
     var id: String { rawValue }
 
@@ -19,6 +20,7 @@ enum AppSection: String, CaseIterable, Identifiable {
         case .sessions: L("nav.sessions")
         case .profiles: L("nav.profiles")
         case .howitworks: L("nav.howitworks")
+        case .tutorial: L("nav.tutorial")
         case .diagnostics: L("nav.diagnostics")
         }
     }
@@ -30,6 +32,7 @@ enum AppSection: String, CaseIterable, Identifiable {
         case .sessions: "touchid"
         case .profiles: "externaldrive.badge.lock"
         case .howitworks: "cpu"
+        case .tutorial: "checklist"
         case .diagnostics: "waveform.path.ecg"
         }
     }
@@ -69,6 +72,7 @@ final class AppModel: ObservableObject {
     @Published var selectedSection: AppSection? = .overview
     @Published var showingAddSecret = false
     @Published var prefillName = ""   // set when opening Add to update an existing secret's value
+    @Published var prefillEnclave = true
     @Published var pendingDeletion: SecretStatus?
     @Published var chthoniosSummary = "Checking…"
     @Published var chthoniosAvailable = false

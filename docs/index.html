@@ -176,6 +176,7 @@
       <a class="btn quiet" href="#install">Install</a>
       <a class="btn quiet" href="#apple">Apple components</a>
       <a class="btn quiet" href="#app">Desktop app</a>
+      <a class="btn quiet" href="#guide">First run</a>
     </div>
   </div>
 </header>
@@ -342,6 +343,35 @@
       rather than its message text, so a wrong passphrase stays distinguishable from a missing profile in
       either language.</p>
     </div>
+  </div>
+</section>
+
+<section id="guide" style="background:var(--paper-deep)">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow">First run</div>
+      <h2>Six checks, from install to screen lock</h2>
+      <p class="muted">Open the app's Tutorial page. Every check comes from live CLI state, not from a saved checkbox.</p>
+    </div>
+    <div class="grid two">
+      <div class="plate">
+        <h3>1 · Connect Hermes</h3>
+        <p>Click <strong>Check now</strong>. If it stays incomplete, verify the Hermes home, executable, plugin, and helper paths in Settings.</p>
+        <h3>2 · Build the helper</h3>
+        <p><code>install.sh</code> builds the Secure Enclave helper. The app can also build it on the first enclave secret. Diagnostics shows the exact path.</p>
+        <h3>3 · Add a plain secret</h3>
+        <p>Choose Apple Keychain for credentials needed by a gateway, daemon, or cron job without Touch ID. The value travels over stdin and is never displayed again.</p>
+      </div>
+      <div class="plate">
+        <h3>4 · Add an enclave secret</h3>
+        <p>Choose Secure Enclave for higher value credentials. Storage needs only the public key, so this step does not prompt for Touch ID.</p>
+        <h3>5 · Unlock once</h3>
+        <p>Click Unlock. One macOS authentication opens every enclave secret until the session TTL expires. Hermes startup remains non-interactive.</p>
+        <h3>6 · Lock with the screen</h3>
+        <p>Enable screen-lock handling to clear enclave sessions when macOS locks. Authenticate again when you return.</p>
+      </div>
+    </div>
+    <p class="note">No real value belongs in a command argument. The CLI prompts in protected input and the app pipes values over stdin. Diagnostics prints paths and states, never secret values.</p>
   </div>
 </section>
 

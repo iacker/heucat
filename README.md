@@ -10,11 +10,11 @@ The ones that matter sit behind Touch ID, encrypted with a key that never leaves
 
 [![macOS](https://img.shields.io/badge/macOS-12%2B-1B1D24?style=flat-square&logo=apple&logoColor=white)](https://www.apple.com/macos/)
 [![Apple silicon](https://img.shields.io/badge/Secure%20Enclave-Apple%20silicon-1F8B68?style=flat-square)](https://support.apple.com/guide/security/secure-enclave-sec59b0b31ff/web)
-[![Tests](https://img.shields.io/badge/tests-40%20passing-1F8B68?style=flat-square)](#tests)
+[![Tests](https://img.shields.io/badge/tests-41%20passing-1F8B68?style=flat-square)](#tests)
 [![UI](https://img.shields.io/badge/UI-SwiftUI%20·%20FR%20%2F%20EN-514FB3?style=flat-square&logo=swift&logoColor=white)](#desktop-app)
 [![License](https://img.shields.io/badge/license-MIT-676B76?style=flat-square)](#license)
 
-[Documentation site](https://iacker.github.io/heucat/) · [Install](#install-in-three-commands) · [Threat model](#security-model) · [Desktop app](#desktop-app)
+[Documentation site](https://iacker.github.io/heucat/) · [Install](#install-in-three-commands) · [First run](#first-run-step-by-step) · [Threat model](#security-model) · [Desktop app](#desktop-app)
 
 </div>
 
@@ -45,6 +45,49 @@ open "/Applications/HEUCAT Keychain.app"
 Then `hermes keychain status` shows what is stored. Everything below
 explains why it is built this way; you do not need it to use it.
 
+## First run, step by step
+
+The desktop app has a **Tutorial** page that checks each step from live state.
+It does not store a separate checklist, so a green check means the CLI can see
+the result now.
+
+1. **Check the Hermes connection.** Open **Tutorial** and click **Check now**.
+   The first check turns green when the `keychain` secret source is enabled for
+   the selected Hermes profile. If it stays empty, open **Settings** and verify
+   the Hermes home, executable, plugin, and helper paths.
+2. **Build the Secure Enclave helper.** `install.sh` builds it during setup. The
+   app can also build it on the first enclave secret. Open **Diagnostics** if
+   the helper check stays empty. This build does not create or read a secret.
+3. **Store a plain secret.** Use **Add a secret**, choose **Apple Keychain**, and
+   enter an environment variable name such as `OPENROUTER_API_KEY`. Plain mode
+   is for gateway or cron credentials that must be available without Touch ID.
+   The value is sent to the local CLI over stdin and is never shown again.
+4. **Store an enclave secret.** Use **Add an enclave secret** and keep **Secure
+   Enclave** selected. The value is encrypted before it is written. Only the
+   public half of the hardware key is needed, so storing does not ask for Touch
+   ID.
+5. **Unlock enclave secrets.** Click **Unlock** once. macOS asks for Touch ID or
+   user authentication. A successful touch opens all enclave secrets for the
+   configured session TTL. Hermes startup stays silent and non-interactive.
+6. **Close the session when the screen locks.** Turn on **Lock when the screen
+   locks**. The app clears enclave sessions when macOS locks the display. You
+   authenticate again after returning.
+
+The same flow is available without the app:
+
+```bash
+hermes keychain status
+hermes keychain store OPENROUTER_API_KEY
+hermes keychain store GITHUB_TOKEN --enclave
+hermes keychain unlock
+hermes keychain lock
+```
+
+Do not put the real value on the command line. Each `store` command prompts in
+protected input, and the app uses stdin. If a step fails, **Diagnostics** shows
+paths, source state, helper state, and the last command result without printing
+secret values.
+
 ## Where it sits
 
 Hermes asks a chain of secret sources for its environment variables at startup.
@@ -73,13 +116,14 @@ process.
 | [What it actually does](#what-it-actually-does) | the four moving parts |
 | [Two modes](#two-modes) | plain for daemons, enclave for the rest |
 | [Install](#install-in-three-commands) | clone, enable, store |
+| [First run](#first-run-step-by-step) | six checked steps in the app or CLI |
 | [How enclave mode works](#how-enclave-mode-works) | the three moments, one prompt |
 | [Headless and daemon setups](#headless-and-daemon-setups) | launchd at boot |
 | [Config reference](#config-reference) | every key under `secrets.keychain` |
 | [CLI](#cli) | the six commands |
 | [Desktop app](#desktop-app) | optional SwiftUI front end, FR and EN |
 | [Security model](#security-model) | what each mode stops, and what it does not |
-| [Tests](#tests) | 40, and how to run them |
+| [Tests](#tests) | 41, and how to run them |
 
 ## What it actually does
 
@@ -390,7 +434,7 @@ HERMES_AGENT_SRC=~/.hermes/hermes-agent \
   uv run --with pytest --with pyyaml --with rich python -m pytest tests/ -v
 ```
 
-40 tests. Most are hermetic, so no real keychain or enclave is touched, and they
+41 tests. Most are hermetic, so no real keychain or enclave is touched, and they
 include the upstream `SecretSourceConformance` kit. The long-value regression
 tests in `tests/test_long_values.py` do touch a scratch Keychain item, because
 the bug they pin only reproduces against the real `security` binary.
