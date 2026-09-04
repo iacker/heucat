@@ -10,7 +10,7 @@ jobs:
       - run: git clone --depth 1 https://github.com/NousResearch/hermes-agent ../hermes-agent
       - uses: astral-sh/setup-uv@v5
       - name: plugin tests
-        run: HERMES_AGENT_SRC=$PWD/../hermes-agent uv run --with pytest --with pyyaml --with rich python -m pytest tests -q
+        run: PYTHONPATH=$PWD/../hermes-agent HERMES_AGENT_SRC=$PWD/../hermes-agent uv run --with pytest --with pyyaml --with rich python -m pytest tests -q
       - name: helper builds
         run: bash helper/build.sh
       - name: app builds and self-tests

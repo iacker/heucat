@@ -431,6 +431,7 @@ Session payloads above the ceiling spill to a 0600 file. Pinned by
 
 ```bash
 HERMES_AGENT_SRC=~/.hermes/hermes-agent \
+  PYTHONPATH=~/.hermes/hermes-agent \
   uv run --with pytest --with pyyaml --with rich python -m pytest tests/ -v
 ```
 

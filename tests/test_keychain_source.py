@@ -3,7 +3,7 @@
 No real keychain, no real enclave — subprocess and session calls are
 monkeypatched. Run:
 
-    HERMES_AGENT_SRC=~/.hermes/hermes-agent python3 -m pytest tests/ -v
+    HERMES_AGENT_SRC=~/.hermes/hermes-agent PYTHONPATH=~/.hermes/hermes-agent python3 -m pytest tests/ -v
 """
 
 from __future__ import annotations
