@@ -174,7 +174,7 @@ case "encrypt":
         let sealed = try ChaChaPoly.seal(
             plaintext, using: symmetricKey(shared: shared, ephemeralPub: ephPub)
         )
-        // Blob layout: ephemeral pub (65 raw bytes) || ChaChaPoly combined.
+        // Blob layout: ephemeral pub (64 raw bytes, x||y) || ChaChaPoly combined.
         var blob = Data()
         blob.append(ephPub)
         blob.append(sealed.combined)

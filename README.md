@@ -14,11 +14,26 @@ The ones that matter sit behind Touch ID, encrypted with a key that never leaves
 [![UI](https://img.shields.io/badge/UI-SwiftUI%20·%20FR%20%2F%20EN-514FB3?style=flat-square&logo=swift&logoColor=white)](#desktop-app)
 [![License](https://img.shields.io/badge/license-MIT-676B76?style=flat-square)](#license)
 
-[Documentation site](https://iacker.github.io/heucat/) · [Install](#install) · [Threat model](#security-model) · [Desktop app](#desktop-app)
+[Documentation site](https://iacker.github.io/heucat/) · [Install](#install-in-three-commands) · [Threat model](#security-model) · [Desktop app](#desktop-app)
 
 </div>
 
 ---
+
+## Install in three commands
+
+Needs a Mac with Apple silicon, [Hermes Agent](https://github.com/NousResearch/hermes-agent)
+already installed, and Xcode Command Line Tools (`xcode-select --install`).
+
+```bash
+git clone https://github.com/iacker/heucat && cd heucat
+./install.sh            # links the plugin, builds the Secure Enclave helper, prints the config stanza
+hermes keychain store OPENROUTER_API_KEY
+```
+
+Add `--app` to `install.sh` for the menu-bar app (about two minutes of Swift
+compile). Then `hermes keychain status` shows what is stored. Everything below
+explains why it is built this way; you do not need it to use it.
 
 ## Where it sits
 
@@ -47,7 +62,7 @@ process.
 |---|---|
 | [What it actually does](#what-it-actually-does) | the four moving parts |
 | [Two modes](#two-modes) | plain for daemons, enclave for the rest |
-| [Install](#install) | clone, enable, store |
+| [Install](#install-in-three-commands) | clone, enable, store |
 | [How enclave mode works](#how-enclave-mode-works) | the three moments, one prompt |
 | [Headless and daemon setups](#headless-and-daemon-setups) | launchd at boot |
 | [Config reference](#config-reference) | every key under `secrets.keychain` |
@@ -117,7 +132,9 @@ full read access to your disk gets ciphertext.
 Pick plain for anything a daemon or cron job needs at boot. Pick enclave for keys
 where you would rather the process fail than have them read silently.
 
-## Install
+## Install by hand
+
+If you would rather not run a script:
 
 ```bash
 git clone https://github.com/iacker/heucat \

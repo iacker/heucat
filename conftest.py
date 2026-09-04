@@ -15,9 +15,11 @@ _DEFAULT = Path.home() / ".hermes" / "hermes-agent"
 _SRC = Path(os.environ.get("HERMES_AGENT_SRC", _DEFAULT)).expanduser()
 
 if not (_SRC / "agent" / "secret_sources" / "base.py").is_file():
-    raise RuntimeError(
+    import pytest
+
+    pytest.exit(
         f"HERMES_AGENT_SRC ({_SRC}) is not a hermes-agent checkout with the "
-        "SecretSource interface; set HERMES_AGENT_SRC"
+        "SecretSource interface; set HERMES_AGENT_SRC", returncode=4,
     )
 
 sys.path.insert(0, str(_SRC))

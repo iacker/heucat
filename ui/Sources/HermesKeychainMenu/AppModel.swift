@@ -37,19 +37,27 @@ enum AppSection: String, CaseIterable, Identifiable {
 
 @MainActor
 final class AppModel: ObservableObject {
-    @AppStorage("hermesBinary") var hermesBinary = "~/.local/bin/hermes"
-    @AppStorage("hermesHome") var hermesHome = "~/.hermes/profiles/ares"
-    @AppStorage("chthoniosBinary") var chthoniosBinary = AppModel.defaultChthonios
-
-    /// First install that actually exists. Hardcoding one path breaks the
-    /// Sealed Profiles page the day that interpreter is cleaned up.
-    static let defaultChthonios: String = [
+    @AppStorage("hermesBinary") var hermesBinary = AppModel.firstExecutable([
+        "~/.local/bin/hermes",
+        "/opt/homebrew/bin/hermes",
+        "/usr/local/bin/hermes",
+    ])
+    @AppStorage("hermesHome") var hermesHome =
+        ProcessInfo.processInfo.environment["HERMES_HOME"] ?? "~/.hermes"
+    @AppStorage("chthoniosBinary") var chthoniosBinary = AppModel.firstExecutable([
         "~/.hermes/hermes-agent/venv/bin/chthonios",
         "~/.local/bin/chthonios",
         "~/Library/Python/3.9/bin/chthonios",
-    ].first {
-        FileManager.default.isExecutableFile(atPath: NSString(string: $0).expandingTildeInPath)
-    } ?? "~/.local/bin/chthonios"
+    ])
+
+    /// First install that actually exists, else the first candidate so the
+    /// Settings field shows a sensible path to fix. Hardcoding one path breaks
+    /// the day that interpreter is cleaned up.
+    static func firstExecutable(_ candidates: [String]) -> String {
+        candidates.first {
+            FileManager.default.isExecutableFile(atPath: NSString(string: $0).expandingTildeInPath)
+        } ?? candidates[0]
+    }
 
     @Published var status = KeychainStatus()
     @Published var isBusy = false
