@@ -54,31 +54,24 @@ def _ensure_helper_built() -> Tuple[Optional[Path], str]:
     import shutil as sh
     import subprocess
 
-    swiftc = sh.which("swiftc")
-    if not swiftc:
+    if not sh.which("swiftc"):
         return None, (
             "swiftc not found — install Xcode Command Line Tools "
             "(xcode-select --install) to build the Secure Enclave helper"
         )
-    out = src.parent / kc.HELPER_NAME
+    # One build recipe. build.sh embeds Info.plist; without it macOS refuses
+    # biometry and unlock silently falls back to the login password.
     try:
         proc = subprocess.run(
-            [swiftc, "-O", "-o", str(out), str(src)],
+            ["/bin/bash", str(src.parent / "build.sh")],
             capture_output=True, text=True, timeout=300,
         )
-        if proc.returncode != 0:
-            return None, f"helper build failed: {proc.stderr.strip()[:300]}"
-        signed = subprocess.run(
-            ["/usr/bin/codesign", "-s", "-", "-f",
-             "--identifier", "com.hermes.keychain-helper", str(out)],
-            capture_output=True, text=True, timeout=60,
-        )
-        if signed.returncode != 0:
-            out.unlink(missing_ok=True)
-            return None, f"helper signing failed: {signed.stderr.strip()[:300]}"
     except Exception as exc:
         return None, f"helper build failed: {exc}"
-    return out, ""
+    if proc.returncode != 0:
+        return None, f"helper build failed: {proc.stderr.strip()[:300]}"
+    helper = _helper()
+    return (helper, "") if helper else (None, "helper build produced no binary")
 
 
 def _ensure_key(home: Path) -> Tuple[Optional[str], str]:

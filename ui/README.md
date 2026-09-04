@@ -18,13 +18,14 @@ implementation and avoiding secret values in process arguments.
 cd ui
 ./scripts/test.sh
 ./scripts/build-app.sh
-open "dist/Hermes Keychain.app"
+open "dist/HEUCAT Keychain.app"
 ```
 
-Default paths target Erwan's local setup and can be changed in Settings:
+Paths are detected on first launch (`hermes` on the usual install paths,
+`HERMES_HOME` or `~/.hermes`) and can be changed in Settings:
 
 - Hermes CLI: `~/.local/bin/hermes`
-- Hermes home: `~/.hermes/profiles/ares`
+- Hermes home: `~/.hermes` (or `~/.hermes/profiles/<name>` for a profile)
 
 The app is ad-hoc signed for local use. A distributable build would need an
 Apple Developer ID signature and notarization.
