@@ -145,6 +145,23 @@ class TestEnclaveMode:
         assert result.secrets == {"PLAIN_KEY": "plain-v"}
         assert any("SE_KEY" in w and "unlock" in w for w in result.warnings)
 
+    def test_access_log_names_keys_never_values(self, source, tmp_path, monkeypatch):
+        import json
+        import stat
+
+        monkeypatch.setattr(kc, "kc_read", lambda s, a, k="": ("plain-v", ""))
+        monkeypatch.setattr(kc, "session_read", lambda home, env: (None, "locked"))
+        cfg = {"accounts": ["PLAIN_KEY"], "items": [{"env": "SE_KEY", "mode": "enclave"}]}
+        source.fetch(cfg, tmp_path)
+        source.fetch(cfg, tmp_path)
+        log = kc.access_log_path(tmp_path)
+        lines = log.read_text().splitlines()
+        assert len(lines) == 2
+        entry = json.loads(lines[-1])
+        assert entry["served"] == ["PLAIN_KEY"] and entry["locked"] == ["SE_KEY"]
+        assert "plain-v" not in log.read_text()
+        assert stat.S_IMODE(log.stat().st_mode) == 0o600
+
 
 class TestNonMacos:
     def test_not_macos_is_clean_error(self, tmp_path, monkeypatch):

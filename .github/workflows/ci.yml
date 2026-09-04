@@ -1,0 +1,21 @@
+name: ci
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: NousResearch/hermes-agent
+          path: hermes-agent
+      - uses: astral-sh/setup-uv@v5
+      - name: plugin tests
+        run: HERMES_AGENT_SRC=$PWD/hermes-agent uv run --with pytest --with pyyaml --with rich python -m pytest tests -q
+      - name: helper builds
+        run: bash helper/build.sh
+      - name: app builds and self-tests
+        run: |
+          cd ui
+          ./scripts/test.sh
+          swift build -c release

@@ -76,6 +76,20 @@ final class AppModel: ObservableObject {
     @Published var pingResults: [String: String] = [:]   // env name -> "ok" | "dead" | "unknown" | "…"
     @Published var isTestingAll = false
 
+    /// Close enclave sessions when the screen locks. Closes the TTL window the
+    /// README warns about, at the cost of one Touch ID when you come back.
+    @AppStorage("lockOnScreenLock") var lockOnScreenLock = true
+
+    init() {
+        DistributedNotificationCenter.default().addObserver(
+            forName: Notification.Name("com.apple.screenIsLocked"),
+            object: nil, queue: .main
+        ) { [weak self] _ in
+            guard let self, self.lockOnScreenLock else { return }
+            Task { await self.lock() }
+        }
+    }
+
     // MARK: Derived state
     //
     // Every number the dashboard shows is computed from real CLI status output.

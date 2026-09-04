@@ -40,6 +40,29 @@ def registry_path(home_path: Path) -> Path:
     return state_dir(home_path) / "items.json"
 
 
+def access_log_path(home_path: Path) -> Path:
+    return state_dir(home_path) / "access.log"
+
+
+def log_access(home_path: Path, *, served: List[str], locked: List[str],
+               failed: List[str]) -> None:
+    """One line per fetch(): who asked, what was served, what was refused.
+    Never the values. Best effort, a logging failure must not break fetch()."""
+    # ponytail: append-only, no rotation. Add logrotate-style truncation
+    # when a file passes a few MB (a fetch is ~100 bytes, so years away).
+    line = json.dumps({
+        "ts": int(time.time()), "pid": os.getpid(), "ppid": os.getppid(),
+        "served": served, "locked": locked, "failed": failed,
+    }, separators=(",", ":"))
+    try:
+        path = access_log_path(home_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "a", encoding="utf-8", opener=lambda p, f: os.open(p, f, 0o600)) as fh:
+            fh.write(line + "\n")
+    except OSError:
+        pass
+
+
 def registered_items(home_path: Path) -> List[dict]:
     try:
         data = json.loads(registry_path(home_path).read_text(encoding="utf-8"))

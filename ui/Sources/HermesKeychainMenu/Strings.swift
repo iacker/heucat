@@ -268,6 +268,7 @@ final class Loc: ObservableObject {
         "menu.lock": "Lock",
         "add.updateHint": "Enter a new value for %@. The old value is overwritten.",
         "settings.privacy": "Privacy",
+        "settings.lockOnScreenLock": "Close enclave sessions when the screen locks",
         "settings.privacyBody": "Secret values are accepted in protected fields, piped directly to the local CLI, cleared from the form, and never displayed again.",
 
         // Status messages
@@ -533,6 +534,7 @@ final class Loc: ObservableObject {
         "menu.lock": "Verrouiller",
         "add.updateHint": "Saisissez une nouvelle valeur pour %@. L'ancienne sera écrasée.",
         "settings.privacy": "Confidentialité",
+        "settings.lockOnScreenLock": "Fermer les sessions enclave quand l'écran se verrouille",
         "settings.privacyBody": "Les valeurs des secrets sont saisies dans des champs protégés, transmises directement au CLI local, effacées du formulaire, et ne sont plus jamais affichées.",
 
         // Status messages

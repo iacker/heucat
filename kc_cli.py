@@ -410,6 +410,30 @@ def cmd_test(args) -> int:
     return 1
 
 
+def cmd_log(args) -> int:
+    """Show the last fetches: when, which process, what was served or refused."""
+    import time as _time
+
+    path = kc.access_log_path(_home_path())
+    if not path.is_file():
+        print("no access recorded yet")
+        return 0
+    lines = path.read_text(encoding="utf-8").splitlines()[-args.n:]
+    for line in lines:
+        try:
+            e = json.loads(line)
+        except ValueError:
+            continue
+        when = _time.strftime("%Y-%m-%d %H:%M:%S", _time.localtime(e.get("ts", 0)))
+        parts = [f"served {', '.join(e['served'])}" if e.get("served") else "served nothing"]
+        if e.get("locked"):
+            parts.append(f"locked {', '.join(e['locked'])}")
+        if e.get("failed"):
+            parts.append(f"failed {', '.join(e['failed'])}")
+        print(f"{when}  pid {e.get('pid')}  {'; '.join(parts)}")
+    return 0
+
+
 def cmd_setup(args) -> int:
     print("Apple Keychain / Secure Enclave secret source — setup\n")
     print("1. Store a secret:")
@@ -463,6 +487,10 @@ def setup_cli_parser(parser) -> None:
     p = sub.add_parser("test", help="ping the provider to check a key is live")
     p.add_argument("env_name")
     p.set_defaults(kc_fn=cmd_test)
+
+    p = sub.add_parser("log", help="show recent secret accesses")
+    p.add_argument("-n", type=int, default=20, help="lines to show (default 20)")
+    p.set_defaults(kc_fn=cmd_log)
 
 
 def cli_dispatch(args) -> int:

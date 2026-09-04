@@ -23,6 +23,7 @@ struct SettingsView: View {
                 LabeledContent(L("diag.chthoniosCli")) { TextField(L("diag.chthoniosCli"), text: $model.chthoniosBinary).frame(width: 330) }
             }
             Section(L("settings.privacy")) {
+                Toggle(L("settings.lockOnScreenLock"), isOn: $model.lockOnScreenLock)
                 Label(L("settings.privacyBody"), systemImage: "hand.raised.fill")
                     .font(.callout).foregroundStyle(.secondary)
             }

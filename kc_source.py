@@ -91,6 +91,8 @@ class KeychainSource(SecretSource):
 
         result.secrets = secrets
         result.binary_path = Path(kc.SECURITY_BIN)
+        kc.log_access(home_path, served=sorted(secrets),
+                      locked=[e for e, _ in expired], failed=[e for e, _ in failed])
 
         for env_name, err in failed:
             result.warnings.append(f"{env_name}: {self._short(err)}")
