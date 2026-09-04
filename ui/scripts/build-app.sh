@@ -48,4 +48,7 @@ PLIST
 plutil -lint "$CONTENTS/Info.plist"
 codesign --force --deep --sign - "$APP"
 codesign --verify --deep --strict "$APP"
+# Release artifact. --sequesterRsrc strips com.apple.provenance xattrs that
+# otherwise break the code seal after unzip.
+ditto -c -k --keepParent --sequesterRsrc "$APP" "$UI/dist/HEUCAT-Keychain.zip"
 echo "$APP"
