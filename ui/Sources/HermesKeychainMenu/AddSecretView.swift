@@ -50,7 +50,7 @@ struct AddSecretView: View {
                 Section(L("overview.protection")) {
                     Picker(L("add.protection"), selection: $protection) {
                         ForEach(Protection.allCases) { option in Text(option.rawValue).tag(option) }
-                    }.pickerStyle(.segmented)
+                    }.pickerStyle(.segmented).disabled(isUpdate)
                     HStack(alignment: .top, spacing: 10) {
                         Image(systemName: protection == .enclave ? "touchid" : "key.fill").foregroundStyle(.tint)
                         Text(protection == .enclave
@@ -67,7 +67,7 @@ struct AddSecretView: View {
                 DisclosureGroup(L("add.advanced"), isExpanded: $showAdvanced) {
                     TextField(L("add.service"), text: $service)
                     TextField(L("add.account"), text: $account)
-                }
+                }.disabled(isUpdate)
                 if !error.isEmpty { Text(error).foregroundStyle(.red).font(.caption) }
             }.formStyle(.grouped).scrollContentBackground(.hidden).padding(.horizontal, 10)
             Divider()

@@ -8,6 +8,7 @@ import os
 import platform
 import subprocess
 import time
+import uuid
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -230,10 +231,8 @@ def kc_delete(service: str, account: str, keychain: str = "") -> str:
 
 # -- unlock-session records ---------------------------------------------------
 #
-# A session record is one login-keychain item under SESSION_SERVICE whose
-# value is JSON {"v": <secret>, "exp": <unix-ts>}. Plaintext never touches
-# disk: the login keychain is encrypted at rest by macOS and only readable
-# inside this user's login session.
+# Session records stay entirely in the login Keychain. Long JSON payloads are
+# split across items because `security` truncates prompted values at 128 chars.
 
 
 def session_account(home_path: Path, env_name: str) -> str:
@@ -243,32 +242,72 @@ def session_account(home_path: Path, env_name: str) -> str:
     return f"{profile_id}:{env_name}"
 
 
-# `security` silently truncates a prompted password at 128 chars. Session
-# payloads (JSON-wrapped value + expiry) routinely exceed that for OAuth
-# tokens, so anything larger spills to a 0600 file beside the ciphertexts and
-# the Keychain item holds only a pointer. The file lives in the same directory
-# that already holds ciphertexts, so it inherits the same 0700 protection.
-SESSION_SPILL_PREFIX = "@spill:"
-_KC_VALUE_LIMIT = 128
+SESSION_SPILL_PREFIX = "@spill:"  # legacy format, migrated on read
+SESSION_CHUNK_PREFIX = "@chunks:"
+_KC_VALUE_LIMIT = 96
 
 
 def _spill_path(home_path: Path, env_name: str) -> Path:
     return secrets_dir(home_path) / f"{env_name}.session"
 
 
+def _chunk_account(account: str, index: int, raw: Optional[str] = None) -> str:
+    generation = raw.split(":")[2] if raw and raw.count(":") == 2 else ""
+    return f"{account}:part:{generation + ':' if generation else ''}{index}"
+
+
+def _chunk_count(raw: Optional[str]) -> int:
+    if not raw or not raw.startswith(SESSION_CHUNK_PREFIX):
+        return 0
+    import re
+    match = re.fullmatch(r"@chunks:([1-9][0-9]{0,3})(?::[0-9a-f]{32})?", raw)
+    if not match:
+        raise ValueError("corrupt session manifest")
+    count = int(match[1])
+    if count > 4096:
+        raise ValueError("session exceeds 4096 chunks")
+    return count
+
+
+def _write_session_payload(home_path: Path, env_name: str, payload: str) -> str:
+    account = session_account(home_path, env_name)
+    previous, _ = kc_read(SESSION_SERVICE, account)
+    try:
+        old_count = _chunk_count(previous)
+    except ValueError as exc:
+        return str(exc)
+    chunks = [payload[i:i + _KC_VALUE_LIMIT] for i in range(0, len(payload), _KC_VALUE_LIMIT)]
+    if len(chunks) > 4096:
+        return "session exceeds 4096 chunks"
+
+    # Publish the manifest last; failed replacements never overwrite old parts.
+    manifest = f"{SESSION_CHUNK_PREFIX}{len(chunks)}:{uuid.uuid4().hex}"
+    if len(chunks) == 1:
+        err = kc_write(SESSION_SERVICE, account, payload)
+        if err:
+            return err
+    else:
+        for index, chunk in enumerate(chunks):
+            err = kc_write(SESSION_SERVICE, _chunk_account(account, index, manifest), chunk)
+            if err:
+                for written in range(index + 1):
+                    kc_delete(SESSION_SERVICE, _chunk_account(account, written, manifest))
+                return err
+        err = kc_write(SESSION_SERVICE, account, manifest)
+        if err:
+            for index in range(len(chunks)):
+                kc_delete(SESSION_SERVICE, _chunk_account(account, index, manifest))
+            return err
+
+    for index in range(old_count):
+        kc_delete(SESSION_SERVICE, _chunk_account(account, index, previous))
+    _spill_path(home_path, env_name).unlink(missing_ok=True)
+    return ""
+
+
 def session_write(home_path: Path, env_name: str, value: str, ttl_seconds: int) -> str:
     payload = json.dumps({"v": value, "exp": int(time.time()) + int(ttl_seconds)})
-    account = session_account(home_path, env_name)
-    spill = _spill_path(home_path, env_name)
-    if len(payload) <= _KC_VALUE_LIMIT:
-        spill.unlink(missing_ok=True)
-        return kc_write(SESSION_SERVICE, account, payload)
-    # Too long for the Keychain: write the payload to disk, point at it.
-    spill.parent.mkdir(parents=True, exist_ok=True)
-    spill.touch(mode=0o600, exist_ok=True)
-    spill.chmod(0o600)
-    spill.write_text(payload)
-    return kc_write(SESSION_SERVICE, account, SESSION_SPILL_PREFIX + spill.name)
+    return _write_session_payload(home_path, env_name, payload)
 
 
 def _session_payload(home_path: Path, env_name: str) -> Tuple[Optional[dict], str]:
@@ -277,20 +316,36 @@ def _session_payload(home_path: Path, env_name: str) -> Tuple[Optional[dict], st
     raw, err = kc_read(SESSION_SERVICE, account)
     if raw is None:
         return None, "no unlock session"
-    if raw.startswith(SESSION_SPILL_PREFIX):
+    try:
+        count = _chunk_count(raw)
+    except ValueError as exc:
+        return None, str(exc)
+    if count:
+        parts = []
+        for index in range(count):
+            part, part_err = kc_read(SESSION_SERVICE, _chunk_account(account, index, raw))
+            if part is None:
+                return None, f"session chunk missing: {part_err}"
+            parts.append(part)
+        raw = "".join(parts)
+    elif raw.startswith(SESSION_SPILL_PREFIX):
         spill = _spill_path(home_path, env_name)
         try:
             raw = spill.read_text()
         except OSError:
             return None, "session file missing"
+        migration_err = _write_session_payload(home_path, env_name, raw)
+        if migration_err:
+            return None, f"session migration failed: {migration_err}"
     try:
         payload = json.loads(raw)
         exp = int(payload["exp"])
-    except (ValueError, KeyError, TypeError):
+        if not isinstance(payload.get("v"), str):
+            return None, "corrupt session record"
+    except (ValueError, KeyError, TypeError, AttributeError):
         return None, "corrupt session record"
     if time.time() >= exp:
-        _spill_path(home_path, env_name).unlink(missing_ok=True)
-        kc_delete(SESSION_SERVICE, account)
+        session_clear(home_path, [env_name])
         return None, "unlock session expired"
     return payload, ""
 
@@ -314,8 +369,16 @@ def session_expires_in(home_path: Path, env_name: str) -> Optional[int]:
 
 def session_clear(home_path: Path, env_names: List[str]) -> None:
     for name in env_names:
+        account = session_account(home_path, name)
+        raw, _ = kc_read(SESSION_SERVICE, account)
+        for index in range(_chunk_count(raw)):
+            error = kc_delete(SESSION_SERVICE, _chunk_account(account, index, raw))
+            if error:
+                raise RuntimeError(f"session cleanup failed for {name}: {error}")
         _spill_path(home_path, name).unlink(missing_ok=True)
-        kc_delete(SESSION_SERVICE, session_account(home_path, name))
+        error = kc_delete(SESSION_SERVICE, account)
+        if error:
+            raise RuntimeError(f"session cleanup failed for {name}: {error}")
 
 
 # -- config parsing -----------------------------------------------------------

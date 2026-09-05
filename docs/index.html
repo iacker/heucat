@@ -165,10 +165,11 @@
     <div class="ornament"><span class="rule rev"></span><span class="lozenge"></span><span class="rule"></span></div>
     <p class="lede">“Between worlds, she keeps the keys.”</p>
     <div class="badges">
-      <span class="badge">macOS · Apple Silicon</span>
+      <span class="badge">macOS 14+ · Apple Silicon</span>
       <span class="badge">Touch ID-gated</span>
       <span class="badge">0 startup prompts</span>
-      <span class="badge">38 tests</span>
+      <span class="badge">Version 0.3.0</span>
+      <span class="badge">55 Python tests</span>
       <span class="badge">MIT</span>
     </div>
     <div class="cta">
@@ -180,6 +181,22 @@
     </div>
   </div>
 </header>
+
+<section id="release">
+  <div class="wrap">
+    <div class="sec-head"><div class="eyebrow">Version 0.3.0</div><h2>A clearer start. Safer updates.</h2></div>
+    <div class="plate">
+      <p>Start with the in-app <strong>Tutorial</strong>. It links each setup step to its action and uses the current CLI status, not a saved checklist. You can return to it from the sidebar.</p>
+      <ul>
+        <li><strong>Sessions stay in Keychain.</strong> Long unlocked values are split across Keychain items, not saved in plaintext files.</li>
+        <li><strong>Updates preserve protection.</strong> Editing a value keeps its mode, service and account. Moving a plain secret to the Secure Enclave is a separate migration.</li>
+        <li><strong>Errors stay visible.</strong> Commands have a timeout. A rejected provider request is not reported as a working key.</li>
+      </ul>
+      <p class="muted">The desktop app requires macOS 14 or later. Secure Enclave mode requires compatible Apple hardware. This is an ad-hoc signed community build, not a notarized Apple release. Unlocking still exposes session values to processes running as you until the TTL ends. Locking does not erase credentials already loaded by a running agent.</p>
+      <a class="btn primary" href="https://github.com/iacker/heucat/releases/tag/v0.3.0">Download v0.3.0</a>
+    </div>
+  </div>
+</section>
 
 <section id="what">
   <div class="wrap">
@@ -336,6 +353,10 @@
       <p class="note">One YubiKey covers as many profiles as you like: the credential lives on the token, so
       the app offers to bind the next profile to the same key in a click. Enrolling the first key stays a
       terminal ceremony, because a mistyped PIN spends one of the token's eight retries.</p>
+      <div style="margin:20px 0 6px">
+        <img src="assets/tutorial-v03.png" alt="HEUCAT 0.3.0 Tutorial page with six live setup checks and direct actions." style="width:100%;border-radius:10px;border:.7px solid var(--hairline)">
+      </div>
+      <p class="muted">The tutorial is always available in the sidebar. On an empty setup, the overview also shows a prominent setup action.</p>
       <div style="margin:20px 0 6px">
         <img src="assets/sealed-profiles.png" alt="The Sealed Profiles page: counters for sealed, open and unmanaged profiles, the profile the app is driving, and one row per profile with the actions its state allows." style="width:100%;border-radius:10px;border:.7px solid var(--hairline)">
       </div>

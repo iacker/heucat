@@ -90,6 +90,23 @@ struct MainWindowView: View {
             }
             .padding(.horizontal, 13)
 
+            if model.status.configuredCount == 0 {
+                Button {
+                    model.selectedSection = .tutorial
+                } label: {
+                    Label(L("app.setupGuide"), systemImage: "sparkles")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Theme.lapis)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 13)
+                        .padding(.vertical, 9)
+                        .background(Theme.lapis.opacity(0.08), in: RoundedRectangle(cornerRadius: 9))
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, 13)
+                .padding(.top, 10)
+            }
+
             Spacer()
 
             VStack(alignment: .leading, spacing: 9) {
@@ -286,11 +303,12 @@ struct OverviewView: View {
                         .padding(.top, 18)
                     HStack(spacing: 11) {
                         Button {
-                            model.selectedSection = .secrets
+                            model.selectedSection = model.status.configuredCount == 0 ? .tutorial : .secrets
                         } label: {
                             HStack(spacing: 7) {
-                                Image(systemName: "lock.fill").font(.system(size: 11))
-                                Text(L("overview.viewSecrets"))
+                                Image(systemName: model.status.configuredCount == 0 ? "sparkles" : "lock.fill")
+                                    .font(.system(size: 11))
+                                Text(L(model.status.configuredCount == 0 ? "overview.startSetup" : "overview.viewSecrets"))
                                 Image(systemName: "chevron.right").font(.system(size: 10, weight: .semibold))
                             }
                         }
@@ -307,6 +325,12 @@ struct OverviewView: View {
                         .buttonStyle(QuietButtonStyle())
                     }
                     .padding(.top, 22)
+                    if model.status.configuredCount == 0 {
+                        Label(L("overview.setupHint"), systemImage: "checklist")
+                            .font(.system(size: 12))
+                            .foregroundStyle(Theme.inkSoft)
+                            .padding(.top, 12)
+                    }
                 }
                 .padding(30)
                 .frame(minWidth: 340, alignment: .leading)

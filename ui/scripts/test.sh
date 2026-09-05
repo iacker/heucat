@@ -9,6 +9,14 @@ swiftc \
 "$BIN"
 rm -f "$BIN"
 
+RUNNER_BIN="${TMPDIR:-/tmp}/hermes-keychain-runner-test"
+swiftc \
+  "$ROOT/Sources/HermesKeychainMenu/HermesRunner.swift" \
+  "$ROOT/Tests/HermesRunnerSelfTest.swift" \
+  -o "$RUNNER_BIN"
+"$RUNNER_BIN"
+rm -f "$RUNNER_BIN"
+
 # The Swift enum and chthonios' cli.py describe the same exit codes; a rename on
 # one side would silently mislabel every failure in the UI.
 python3 "$ROOT/scripts/check-exit-codes.py"

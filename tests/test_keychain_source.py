@@ -322,6 +322,57 @@ class TestNoPromptGuarantee:
         assert captured["value"] == secret
         assert secret not in vars(args).values()
 
+    def test_store_update_preserves_custom_keychain_location(self, tmp_path, monkeypatch):
+        import argparse
+        import io
+
+        captured = {}
+        monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+        monkeypatch.setattr("sys.stdin", io.StringIO("replacement\n"))
+        monkeypatch.setattr(kc_cli, "_load_cfg", lambda: {"items": [{
+            "env": "CUSTOM_TOKEN", "mode": "plain", "service": "custom-service",
+            "account": "custom-account", "keychain": "custom.keychain-db",
+        }]})
+        monkeypatch.setattr(kc, "kc_write", lambda s, a, v, k="": captured.update(
+            service=s, account=a, keychain=k,
+        ) or "")
+        args = argparse.Namespace(
+            env_name="CUSTOM_TOKEN", enclave=False, service=None, account=None, stdin=True,
+        )
+
+        assert kc_cli.cmd_store(args) == 0
+        assert captured == {
+            "service": "custom-service", "account": "custom-account",
+            "keychain": "custom.keychain-db",
+        }
+
+    def test_store_rejects_implicit_mode_change(self, tmp_path, monkeypatch):
+        import argparse
+
+        monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+        monkeypatch.setattr(kc_cli, "_load_cfg", lambda: {
+            "items": [{"env": "TOKEN", "mode": "plain"}],
+        })
+        args = argparse.Namespace(
+            env_name="TOKEN", enclave=True, service=None, account=None, stdin=True,
+        )
+        assert kc_cli.cmd_store(args) == 2
+
+    def test_delete_uses_registered_custom_location(self, tmp_path, monkeypatch):
+        import argparse
+
+        deleted = []
+        monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+        monkeypatch.setattr(kc_cli, "_load_cfg", lambda: {"items": [{
+            "env": "CUSTOM_TOKEN", "mode": "plain", "service": "custom-service",
+            "account": "custom-account", "keychain": "custom.keychain-db",
+        }]})
+        monkeypatch.setattr(kc, "kc_delete", lambda s, a, k="": deleted.append((s, a, k)) or "")
+        args = argparse.Namespace(env_name="CUSTOM_TOKEN", service=None, account=None)
+
+        assert kc_cli.cmd_delete(args) == 0
+        assert ("custom-service", "custom-account", "custom.keychain-db") in deleted
+
     def test_session_accounts_are_isolated_by_profile(self, tmp_path):
         profile_a = tmp_path / "profiles" / "a"
         profile_b = tmp_path / "profiles" / "b"
@@ -339,7 +390,7 @@ class TestSessionExpiry:
         store = {}
         monkeypatch.setattr(kc, "kc_write", lambda s, a, v: store.__setitem__(a, v) or "")
         monkeypatch.setattr(kc, "kc_read", lambda s, a, k=None: (store.get(a), "" if a in store else "missing"))
-        monkeypatch.setattr(kc, "kc_delete", lambda s, a, k=None: store.pop(a, None))
+        monkeypatch.setattr(kc, "kc_delete", lambda s, a, k=None: (store.pop(a, None), "")[1])
 
         kc.session_write(tmp_path, "TOKEN", "v", 3600)
         left = kc.session_expires_in(tmp_path, "TOKEN")
@@ -355,3 +406,39 @@ class TestSessionExpiry:
         assert _human_delay(27000) == "7h30m"
         assert _human_delay(900) == "15m"
         assert _human_delay(40) == "<1m"
+
+
+class TestProviderProbe:
+    def test_http_403_is_not_reported_as_authenticated(self, tmp_path, monkeypatch):
+        import argparse
+        from email.message import Message
+        import urllib.error
+        import urllib.request
+
+        monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+        monkeypatch.setattr(kc_cli, "_effective_cfg", lambda: {
+            "items": [{"env": "OPENAI_API_KEY", "mode": "plain"}],
+        })
+        monkeypatch.setattr(kc_cli, "_read_value", lambda home, item: ("secret", ""))
+        monkeypatch.setattr(urllib.request, "urlopen", lambda *a, **k: (_ for _ in ()).throw(
+            urllib.error.HTTPError("url", 403, "forbidden", Message(), None)
+        ))
+
+        assert kc_cli.cmd_test(argparse.Namespace(env_name="OPENAI_API_KEY")) == 1
+
+    def test_http_429_is_inconclusive(self, tmp_path, monkeypatch):
+        import argparse
+        from email.message import Message
+        import urllib.error
+        import urllib.request
+
+        monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+        monkeypatch.setattr(kc_cli, "_effective_cfg", lambda: {
+            "items": [{"env": "OPENAI_API_KEY", "mode": "plain"}],
+        })
+        monkeypatch.setattr(kc_cli, "_read_value", lambda home, item: ("secret", ""))
+        monkeypatch.setattr(urllib.request, "urlopen", lambda *a, **k: (_ for _ in ()).throw(
+            urllib.error.HTTPError("url", 429, "limited", Message(), None)
+        ))
+
+        assert kc_cli.cmd_test(argparse.Namespace(env_name="OPENAI_API_KEY")) == 3

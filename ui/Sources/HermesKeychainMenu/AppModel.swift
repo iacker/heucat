@@ -89,8 +89,10 @@ final class AppModel: ObservableObject {
             forName: Notification.Name("com.apple.screenIsLocked"),
             object: nil, queue: .main
         ) { [weak self] _ in
-            guard let self, self.lockOnScreenLock else { return }
-            Task { await self.lock() }
+            Task { @MainActor [weak self] in
+                guard let self, self.lockOnScreenLock else { return }
+                await self.lock()
+            }
         }
     }
 

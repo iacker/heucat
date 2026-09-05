@@ -8,9 +8,9 @@ Serve [Hermes Agent](https://github.com/NousResearch/hermes-agent) API keys from
 instead of a plaintext `.env` file.<br/>
 The ones that matter sit behind Touch ID, encrypted with a key that never leaves the Secure Enclave.
 
-[![macOS](https://img.shields.io/badge/macOS-12%2B-1B1D24?style=flat-square&logo=apple&logoColor=white)](https://www.apple.com/macos/)
+[![macOS](https://img.shields.io/badge/macOS-14%2B-1B1D24?style=flat-square&logo=apple&logoColor=white)](https://www.apple.com/macos/)
 [![Apple silicon](https://img.shields.io/badge/Secure%20Enclave-Apple%20silicon-1F8B68?style=flat-square)](https://support.apple.com/guide/security/secure-enclave-sec59b0b31ff/web)
-[![Tests](https://img.shields.io/badge/tests-41%20passing-1F8B68?style=flat-square)](#tests)
+[![Tests](https://img.shields.io/badge/tests-55%20passing-1F8B68?style=flat-square)](#tests)
 [![UI](https://img.shields.io/badge/UI-SwiftUI%20·%20FR%20%2F%20EN-514FB3?style=flat-square&logo=swift&logoColor=white)](#desktop-app)
 [![License](https://img.shields.io/badge/license-MIT-676B76?style=flat-square)](#license)
 
@@ -123,7 +123,7 @@ process.
 | [CLI](#cli) | the six commands |
 | [Desktop app](#desktop-app) | optional SwiftUI front end, FR and EN |
 | [Security model](#security-model) | what each mode stops, and what it does not |
-| [Tests](#tests) | 41, and how to run them |
+| [Tests](#tests) | 55, and how to run them |
 
 ## What it actually does
 
@@ -225,8 +225,9 @@ hermes keychain store GITHUB_TOKEN --enclave        # Secure Enclave
 Storing registers the secret automatically, so you do not have to hand-edit
 `config.yaml` to declare it. The registration lives in a 0600 JSON file under
 your profile and is written atomically. Explicit `accounts` and `items` entries
-in `config.yaml` still work and still take precedence, so an existing setup keeps
-behaving the way it did.
+in `config.yaml` still work. A newer automatic registration for the same
+environment variable takes precedence, so updates and migrations do not leave a
+stale mode active.
 
 For enclave secrets, authenticate once per session:
 
@@ -321,6 +322,21 @@ it ever appearing in `ps` output or shell history.
 
 ## Desktop app
 
+### Version 0.3.0
+
+Open **Tutorial** in the sidebar for the guided setup. Each step shows the
+current state and links to the corresponding action. The app and plugin must
+both be updated; replacing the app alone does not update the Python plugin.
+
+This release keeps long unlock sessions inside Keychain, preserves protection
+and custom locations during value updates, and reports command timeouts.
+Provider diagnostics no longer treat HTTP 403 as successful authentication.
+
+The install script quits the old app, backs it up under
+`~/Library/Application Support/HEUCAT/Backups/`, then installs the new bundle
+in `/Applications`. Open that copy rather than an older Dock shortcut.
+The app requires macOS 14 or later. Builds are ad-hoc signed, not notarized.
+
 There is an optional SwiftUI app in [`ui/`](ui/). It shows source and per secret
 state, adds and deletes secrets, tests whether a key still answers, and runs
 unlock or lock without a terminal. It shells out to the same plugin CLI and pipes
@@ -362,8 +378,7 @@ enum and `chthonios/cli.py` ever disagree.
 cd ui
 ./scripts/test.sh
 ./scripts/build-app.sh
-cp -R "dist/HEUCAT Keychain.app" /Applications/
-open -a "HEUCAT Keychain"
+bash ./scripts/install-app.sh
 ```
 
 The build script generates the icon from `ui/assets/icon-source.png` when Pillow
@@ -424,8 +439,8 @@ exits 0.** A long OAuth token was stored cut in half and surfaced later as a
 corrupt session record. Passing the value as an argument instead would put the
 secret in `argv` where `ps` reads it, which is worse. So writes now verify
 themselves by reading back, and a short write is reported instead of stored.
-Session payloads above the ceiling spill to a 0600 file. Pinned by
-`tests/test_long_values.py`.
+Long session payloads are split across Keychain items. Plaintext never spills to
+disk. Pinned by `tests/test_long_values.py`.
 
 ## Tests
 
@@ -435,12 +450,13 @@ HERMES_AGENT_SRC=~/.hermes/hermes-agent \
   uv run --with pytest --with pyyaml --with rich python -m pytest tests/ -v
 ```
 
-41 tests. Most are hermetic, so no real keychain or enclave is touched, and they
+55 tests. Most are hermetic, so no real keychain or enclave is touched, and they
 include the upstream `SecretSourceConformance` kit. The long-value regression
 tests in `tests/test_long_values.py` do touch a scratch Keychain item, because
 the bug they pin only reproduces against the real `security` binary.
 
-The Swift side has its own check, plus two guards that fail on drift: one for
+The Swift side has self-checks for status parsing and process execution, plus
+two guards that fail on drift: one for
 the FR/EN string tables, one for the exit codes the UI reads from Chthonios:
 
 ```bash

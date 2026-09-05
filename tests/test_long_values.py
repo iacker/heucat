@@ -1,9 +1,7 @@
-"""Regression: macOS `security` truncates prompted passwords at 128 chars.
+"""Regression tests for macOS Keychain's 128-character prompt limit.
 
-Before this was caught, a long OAuth token was stored truncated and exited 0,
-producing "corrupt session record" at read time and losing the value. These
-tests pin both halves of the fix: writes verify themselves, and long session
-payloads spill to a file instead of being silently cut.
+Writes verify themselves, and long session payloads are split across Keychain
+items so plaintext never spills to disk.
 
 Run: python3 -m pytest tests/test_long_values.py -q
 """
@@ -54,34 +52,61 @@ def test_long_value_is_rejected_not_silently_truncated():
         _cleanup(account)
 
 
-def test_long_session_round_trips_via_spill(home: Path):
-    """A long token must survive unlock -> read, which is what broke."""
+def test_long_session_round_trips_inside_keychain(home: Path):
+    """Long sessions are chunked in Keychain and never written to disk."""
     env = "PYTEST_LONG_TOKEN"
     try:
         assert kc.session_write(home, env, LONG, 3600) == ""
         value, err = kc.session_read(home, env)
         assert err == ""
         assert value == LONG, "long session value did not round-trip"
-        assert kc._spill_path(home, env).is_file()
-        assert kc._spill_path(home, env).stat().st_mode & 0o777 == 0o600
+        assert not kc._spill_path(home, env).exists()
+        manifest, _ = kc.kc_read(kc.SESSION_SERVICE, kc.session_account(home, env))
+        assert manifest and manifest.startswith(kc.SESSION_CHUNK_PREFIX)
     finally:
         kc.session_clear(home, [env])
 
 
-def test_short_session_stays_in_keychain(home: Path):
+def test_short_session_stays_in_one_keychain_item(home: Path):
     env = "PYTEST_SHORT_TOKEN"
     try:
         assert kc.session_write(home, env, SHORT, 3600) == ""
         assert kc.session_read(home, env)[0] == SHORT
-        assert not kc._spill_path(home, env).exists(), "short value should not spill"
+        manifest, _ = kc.kc_read(kc.SESSION_SERVICE, kc.session_account(home, env))
+        assert manifest and not manifest.startswith(kc.SESSION_CHUNK_PREFIX)
+        assert not kc._spill_path(home, env).exists()
     finally:
         kc.session_clear(home, [env])
 
 
-def test_session_clear_removes_spill_file(home: Path):
+def test_session_clear_removes_chunks(home: Path):
     env = "PYTEST_CLEAR_TOKEN"
-    kc.session_write(home, env, LONG, 3600)
-    assert kc._spill_path(home, env).is_file()
+    assert kc.session_write(home, env, LONG, 3600) == ""
+    account = kc.session_account(home, env)
+    manifest, _ = kc.kc_read(kc.SESSION_SERVICE, account)
+    count = kc._chunk_count(manifest)
+    assert count > 1
     kc.session_clear(home, [env])
-    assert not kc._spill_path(home, env).exists()
+    assert all(
+        kc.kc_read(kc.SESSION_SERVICE, kc._chunk_account(account, index, manifest))[0] is None
+        for index in range(count)
+    )
     assert kc.session_read(home, env)[0] is None
+
+
+def test_legacy_spill_is_migrated_and_removed(home: Path):
+    env = "PYTEST_LEGACY_TOKEN"
+    account = kc.session_account(home, env)
+    spill = kc._spill_path(home, env)
+    payload = '{"v":"' + LONG + '","exp":4102444800}'
+    try:
+        spill.parent.mkdir(parents=True)
+        spill.write_text(payload)
+        assert kc.kc_write(kc.SESSION_SERVICE, account, kc.SESSION_SPILL_PREFIX + spill.name) == ""
+
+        assert kc.session_read(home, env) == (LONG, "")
+        assert not spill.exists()
+        manifest, _ = kc.kc_read(kc.SESSION_SERVICE, account)
+        assert kc._chunk_count(manifest) > 1
+    finally:
+        kc.session_clear(home, [env])

@@ -39,6 +39,26 @@ struct TutorialView: View {
     private var stack: some View {
         VStack(alignment: .leading, spacing: 20) {
             pageHeader(L("tut.title"), L("tut.subtitle"))
+            Plate {
+                HStack(spacing: 16) {
+                    ZStack {
+                        Circle().fill(Theme.lapis.opacity(0.1)).frame(width: 48, height: 48)
+                        Image(systemName: "shield.lefthalf.filled")
+                            .font(.system(size: 21))
+                            .foregroundStyle(Theme.lapis)
+                    }
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(L("tut.progress", steps.filter(\.done).count, steps.count))
+                            .font(Theme.serif(17, weight: .semibold))
+                            .foregroundStyle(Theme.ink)
+                        ProgressView(value: Double(steps.filter(\.done).count), total: Double(steps.count))
+                            .tint(Theme.verdigris)
+                        Text(L("tut.securityNote"))
+                            .font(.system(size: 12))
+                            .foregroundStyle(Theme.inkSoft)
+                    }
+                }
+            }
             ForEach(steps) { step in
                 Plate {
                     HStack(alignment: .top, spacing: 16) {
@@ -59,6 +79,7 @@ struct TutorialView: View {
                         Spacer()
                         if !step.done {
                             Button(L("tut.\(step.id).action"), action: step.action)
+                                .buttonStyle(QuietButtonStyle())
                                 .disabled(model.isBusy)
                         }
                     }

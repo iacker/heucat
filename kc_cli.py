@@ -149,8 +149,30 @@ def cmd_store(args) -> int:
     if not kc.valid_env_name(env_name):
         print(f"invalid environment variable name: {env_name!r}", file=sys.stderr)
         return 2
-    mode = "enclave" if args.enclave else "plain"
+    requested_mode = "enclave" if args.enclave else "plain"
     home = _home_path()
+    items, _ = kc.parse_items(_effective_cfg())
+    existing = next((item for item in items if item["env"] == env_name), None)
+    if existing and existing["mode"] != requested_mode:
+        print(
+            f"{env_name} is {existing['mode']}-mode; use `hermes keychain migrate {env_name}` "
+            "to change protection",
+            file=sys.stderr,
+        )
+        return 2
+    mode = existing["mode"] if existing else requested_mode
+    if existing and mode == "plain":
+        requested_location = {
+            "service": args.service,
+            "account": args.account,
+        }
+        for field, requested in requested_location.items():
+            if requested and requested != existing[field]:
+                print(
+                    f"cannot change {field} while updating {env_name}; delete and store it again",
+                    file=sys.stderr,
+                )
+                return 2
 
     value = sys.stdin.read().rstrip("\n") if args.stdin else getpass.getpass(
         f"Value for {env_name} (hidden): "
@@ -160,15 +182,16 @@ def cmd_store(args) -> int:
         return 1
 
     if mode == "plain":
-        service = args.service or kc.DEFAULT_SERVICE
-        account = args.account or env_name
-        err = kc.kc_write(service, account, value)
+        service = args.service or (existing or {}).get("service") or kc.DEFAULT_SERVICE
+        account = args.account or (existing or {}).get("account") or env_name
+        keychain = (existing or {}).get("keychain", "")
+        err = kc.kc_write(service, account, value, keychain)
         if err:
             print(f"keychain write failed: {err}", file=sys.stderr)
             return 1
         kc.register_item(home, {
             "env": env_name, "mode": mode,
-            "service": service, "account": account,
+            "service": service, "account": account, "keychain": keychain,
         })
         print(f"stored {env_name} (plain, service={service})")
     else:
@@ -254,7 +277,11 @@ def cmd_lock(args) -> int:
     cfg = _effective_cfg()
     items, _ = kc.parse_items(cfg)
     targets = [i["env"] for i in items if i["mode"] == "enclave"]
-    kc.session_clear(_home_path(), targets)
+    try:
+        kc.session_clear(_home_path(), targets)
+    except (RuntimeError, ValueError, OSError) as exc:
+        print(f"lock incomplete: {exc}", file=sys.stderr)
+        return 1
     print(f"cleared {len(targets)} unlock session(s)")
     return 0
 
@@ -314,7 +341,23 @@ def cmd_delete(args) -> int:
     if not kc.valid_env_name(env_name):
         print(f"invalid environment variable name: {env_name!r}", file=sys.stderr)
         return 2
-    kc.kc_delete(args.service or kc.DEFAULT_SERVICE, args.account or env_name)
+    items, _ = kc.parse_items(_effective_cfg())
+    item = next((candidate for candidate in items if candidate["env"] == env_name), None)
+    if item is None and not (args.service or args.account):
+        print(f"{env_name} is not registered", file=sys.stderr)
+        return 1
+    if item and item["mode"] == "plain":
+        service = args.service or item["service"]
+        account = args.account or item["account"]
+        err = kc.kc_delete(service, account, item.get("keychain", ""))
+        if err:
+            print(f"keychain delete failed: {err}", file=sys.stderr)
+            return 1
+    elif not item and (args.service or args.account):
+        err = kc.kc_delete(args.service or kc.DEFAULT_SERVICE, args.account or env_name)
+        if err:
+            print(f"keychain delete failed: {err}", file=sys.stderr)
+            return 1
     ct = kc.ct_path(home, env_name)
     if ct.is_file():
         ct.unlink()
@@ -361,13 +404,11 @@ def _read_value(home: Path, item: dict) -> Tuple[Optional[str], str]:
     return kc.session_read(home, item["env"])
 
 
-# env-name substring -> (url, header builder). Only providers we can probe
-# cheaply with a GET. ponytail: hardcoded map, extend when a new key type shows up.
+# env-name substring -> (authenticated endpoint, header builder).
+# Keep only providers whose endpoint actually rejects missing credentials.
 _PROBES: Dict[str, tuple] = {
     "MISTRAL": ("https://api.mistral.ai/v1/models", lambda v: {"Authorization": f"Bearer {v}"}),
-    "TAVILY": ("https://api.tavily.com/", lambda v: {}),
-    "X_BEARER": ("https://api.twitter.com/2/users/me", lambda v: {"Authorization": f"Bearer {v}"}),
-    "OPENROUTER": ("https://openrouter.ai/api/v1/models", lambda v: {"Authorization": f"Bearer {v}"}),
+    "OPENROUTER": ("https://openrouter.ai/api/v1/credits", lambda v: {"Authorization": f"Bearer {v}"}),
     "OPENAI": ("https://api.openai.com/v1/models", lambda v: {"Authorization": f"Bearer {v}"}),
 }
 
@@ -402,11 +443,13 @@ def cmd_test(args) -> int:
     except Exception as exc:
         print(f"dead: {type(exc).__name__}", file=sys.stderr)
         return 1
-    # 2xx or a non-auth 4xx (e.g. 400/404) means the key authenticated fine.
-    if code < 400 or code in (400, 403, 404, 429):
+    if 200 <= code < 300:
         print(f"ok: {env_name} authenticated (HTTP {code})")
         return 0
-    print(f"dead: HTTP {code} (auth rejected)", file=sys.stderr)
+    if code == 429:
+        print(f"unknown: provider rate limited the check (HTTP {code})")
+        return 3
+    print(f"dead: HTTP {code} (authentication not accepted)", file=sys.stderr)
     return 1
 
 

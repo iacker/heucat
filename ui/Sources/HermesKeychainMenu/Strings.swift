@@ -56,6 +56,8 @@ final class Loc: ObservableObject {
         "tut.subtitle": "Six steps. Each box ticks itself when the app sees it done.",
         "tut.done": "Done",
         "tut.todo": "To do",
+        "tut.progress": "%@ of %@ protections ready",
+        "tut.securityNote": "HEUCAT never displays secret values. Progress comes from live CLI status.",
         "tut.1.title": "Hermes and the plugin talk to each other",
         "tut.1.body": "The app runs `hermes keychain status` under the hood. If this box is unticked, fix the paths in Settings or run install.sh again.",
         "tut.1.action": "Check now",
@@ -89,8 +91,11 @@ final class Loc: ObservableObject {
         "app.needsAttention": "Needs attention",
         "app.notChecked": "Not checked yet",
         "app.verified": "Verified",
+        "app.setupGuide": "Setup guide",
 
         // Overview
+        "overview.startSetup": "Start setup",
+        "overview.setupHint": "New here? The guided setup verifies each step from live status.",
         "overview.eyebrow": "Runtime secret source",
         "overview.motto": "Between worlds,\nshe keeps the keys.",
         "overview.viewSecrets": "View secrets",
@@ -345,6 +350,8 @@ final class Loc: ObservableObject {
         "tut.subtitle": "Six étapes. Chaque case se coche seule quand l'app constate que c'est fait.",
         "tut.done": "Fait",
         "tut.todo": "À faire",
+        "tut.progress": "%@ protections sur %@ sont prêtes",
+        "tut.securityNote": "HEUCAT n’affiche jamais les valeurs. La progression vient de l’état réel du CLI.",
         "tut.1.title": "Hermes et le plugin se parlent",
         "tut.1.body": "L'app lance `hermes keychain status` en coulisses. Si cette case reste vide, corrigez les chemins dans Réglages ou relancez install.sh.",
         "tut.1.action": "Vérifier",
@@ -378,8 +385,11 @@ final class Loc: ObservableObject {
         "app.needsAttention": "Attention requise",
         "app.notChecked": "Pas encore vérifié",
         "app.verified": "Vérifié",
+        "app.setupGuide": "Guide de démarrage",
 
         // Overview
+        "overview.startSetup": "Configurer HEUCAT",
+        "overview.setupHint": "Première utilisation ? Le guide valide chaque étape depuis l'état réel.",
         "overview.eyebrow": "Source de secrets à l'exécution",
         "overview.motto": "Entre les mondes,\nelle garde les clés.",
         "overview.viewSecrets": "Voir les secrets",
