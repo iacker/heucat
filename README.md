@@ -47,9 +47,12 @@ explains why it is built this way; you do not need it to use it.
 
 ## First run, step by step
 
-The desktop app has a **Tutorial** page that checks each step from live state.
-It does not store a separate checklist, so a green check means the CLI can see
-the result now.
+The desktop app has a **Tutorial** page for people who are new to macOS
+security. It first explains Keychain, plain and enclave secrets, Touch ID, and
+temporary sessions. The next section teaches every screen through clickable
+cards. A final checklist checks each setup step from live state. It does not
+store separate checkboxes, so a green check means the CLI can see the result
+now.
 
 1. **Check the Hermes connection.** Open **Tutorial** and click **Check now**.
    The first check turns green when the `keychain` secret source is enabled for
