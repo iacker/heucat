@@ -442,3 +442,25 @@ class TestProviderProbe:
         ))
 
         assert kc_cli.cmd_test(argparse.Namespace(env_name="OPENAI_API_KEY")) == 3
+
+
+class TestExport:
+    def test_export_quotes_and_shells_out_readable_secrets(self, tmp_path, monkeypatch, capsys):
+        import argparse
+        monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+        monkeypatch.setattr(kc_cli, "_effective_cfg", lambda: {
+            "items": [
+                {"env": "OK_KEY", "mode": "plain"},
+                {"env": "LOCKED_KEY", "mode": "enclave"},
+            ],
+        })
+        vals = {"OK_KEY": "it's a \"secret\"", "LOCKED_KEY": None}
+        monkeypatch.setattr(kc_cli, "_read_value",
+                            lambda home, item: (vals[item["env"]], "" if vals[item["env"]] else "locked"))
+        rc = kc_cli.cmd_export(argparse.Namespace(dotenv=False))
+        out = capsys.readouterr()
+        assert rc == 1  # one locked -> non-zero
+        assert out.out == "export OK_KEY='it'\\''s a \"secret\"'\n"
+        assert "LOCKED_KEY" in out.err and "OK_KEY" not in out.err
+        assert kc_cli.cmd_export(argparse.Namespace(dotenv=True)) == 1
+        assert capsys.readouterr().out.startswith("OK_KEY=")

@@ -477,6 +477,35 @@ def cmd_log(args) -> int:
     return 0
 
 
+def cmd_export(args) -> int:
+    """Emit readable secrets as shell lines so any harness (not just Hermes) can
+    load them: `eval "$(hermes keychain export)"`. Values go to stdout;
+    diagnostics to stderr so stdout stays sourceable. Never prints a value that
+    could not be read."""
+    home = _home_path()
+    items, warnings = kc.parse_items(_effective_cfg())
+    for w in warnings:
+        print(w, file=sys.stderr)
+    if not items:
+        print("no secrets registered", file=sys.stderr)
+        return 1
+    served, locked = [], []
+    for item in items:
+        value, err = _read_value(home, item)
+        if not value:
+            locked.append(item["env"])
+            print(f"{item['env']}: {err or 'locked — run hermes keychain unlock'}",
+                  file=sys.stderr)
+            continue
+        # Single-quote and escape embedded quotes: 'it'\''s' is the POSIX idiom.
+        quoted = "'" + value.replace("'", "'\\''") + "'"
+        prefix = "" if args.dotenv else "export "
+        print(f"{prefix}{item['env']}={quoted}")
+        served.append(item["env"])
+    kc.log_access(home, served=served, locked=locked, failed=[])
+    return 0 if served and not locked else 1
+
+
 def cmd_setup(args) -> int:
     print("Apple Keychain / Secure Enclave secret source — setup\n")
     print("1. Store a secret:")
@@ -534,6 +563,13 @@ def setup_cli_parser(parser) -> None:
     p = sub.add_parser("log", help="show recent secret accesses")
     p.add_argument("-n", type=int, default=20, help="lines to show (default 20)")
     p.set_defaults(kc_fn=cmd_log)
+
+    p = sub.add_parser("export",
+                       help="emit KEY=value lines for any harness: "
+                            "eval \"$(hermes keychain export)\"")
+    p.add_argument("--dotenv", action="store_true",
+                   help="drop the 'export ' prefix (plain .env lines)")
+    p.set_defaults(kc_fn=cmd_export)
 
 
 def cli_dispatch(args) -> int:

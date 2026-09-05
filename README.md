@@ -123,10 +123,10 @@ process.
 | [How enclave mode works](#how-enclave-mode-works) | the three moments, one prompt |
 | [Headless and daemon setups](#headless-and-daemon-setups) | launchd at boot |
 | [Config reference](#config-reference) | every key under `secrets.keychain` |
-| [CLI](#cli) | the six commands |
+| [CLI](#cli) | the seven commands |
 | [Desktop app](#desktop-app) | optional SwiftUI front end, FR and EN |
 | [Security model](#security-model) | what each mode stops, and what it does not |
-| [Tests](#tests) | 55, and how to run them |
+| [Tests](#tests) | 56, and how to run them |
 
 ## What it actually does
 
@@ -318,17 +318,25 @@ hermes keychain unlock                one auth, opens every enclave session
 hermes keychain lock                  clear sessions now
 hermes keychain status                per secret state
 hermes keychain delete <ENV>          remove item, ciphertext, session, registration
+hermes keychain export [--dotenv]     emit KEY=value lines for any harness
 ```
 
 `store` also accepts `--stdin` so a GUI or a script can pipe a value in without
 it ever appearing in `ps` output or shell history.
 
+`export` is the bridge to non-Hermes tools. The plugin's `fetch()` only serves
+the Hermes process, so `export` prints the readable secrets as shell lines any
+process can load: `eval "$(hermes keychain export)"`, or `--dotenv` for plain
+`KEY=value` lines. Values go to stdout, diagnostics to stderr, and a locked
+enclave secret is skipped with a hint rather than a blank line.
+
 ## Desktop app
 
 ### Version 0.3.0
 
-Open **Tutorial** in the sidebar for the guided setup. Each step shows the
-current state and links to the corresponding action. The app and plugin must
+Open **Guide** in the sidebar for the security concepts, a walk through every
+screen, and the guided setup. Each step shows the current state and links to the
+corresponding action. The app and plugin must
 both be updated; replacing the app alone does not update the Python plugin.
 
 This release keeps long unlock sessions inside Keychain, preserves protection
@@ -346,9 +354,9 @@ unlock or lock without a terminal. It shells out to the same plugin CLI and pipe
 secret values over stdin, so nothing sensitive lands in process arguments.
 
 The interface ships in French and English, switchable live from the title bar or
-Settings without restarting. A How it works page explains the Enclave chain in
-plain language, for the times you have to justify this to someone who does not
-read Swift.
+Settings without restarting. A single Guide page explains the Enclave chain in
+plain language, walks every screen, then checks your setup live, for the times
+you have to justify this to someone who does not read Swift.
 
 It also has a Sealed Profiles section that drives [hermes-chthonios](https://github.com/iacker/hermes-chthonios)
 end to end: seal a profile behind a passphrase or a YubiKey, unseal it, lock it,
@@ -453,7 +461,7 @@ HERMES_AGENT_SRC=~/.hermes/hermes-agent \
   uv run --with pytest --with pyyaml --with rich python -m pytest tests/ -v
 ```
 
-55 tests. Most are hermetic, so no real keychain or enclave is touched, and they
+56 tests. Most are hermetic, so no real keychain or enclave is touched, and they
 include the upstream `SecretSourceConformance` kit. The long-value regression
 tests in `tests/test_long_values.py` do touch a scratch Keychain item, because
 the bug they pin only reproduces against the real `security` binary.

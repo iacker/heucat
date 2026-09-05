@@ -7,8 +7,7 @@ enum AppSection: String, CaseIterable, Identifiable {
     case secrets = "Secrets"
     case sessions = "Sessions"
     case profiles = "Sealed Profiles"
-    case howitworks = "How it works"
-    case tutorial = "Tutorial"
+    case guide = "Guide"
     case diagnostics = "Diagnostics"
     var id: String { rawValue }
 
@@ -19,8 +18,7 @@ enum AppSection: String, CaseIterable, Identifiable {
         case .secrets: L("nav.secrets")
         case .sessions: L("nav.sessions")
         case .profiles: L("nav.profiles")
-        case .howitworks: L("nav.howitworks")
-        case .tutorial: L("nav.tutorial")
+        case .guide: L("nav.guide")
         case .diagnostics: L("nav.diagnostics")
         }
     }
@@ -31,8 +29,7 @@ enum AppSection: String, CaseIterable, Identifiable {
         case .secrets: "key.horizontal"
         case .sessions: "touchid"
         case .profiles: "externaldrive.badge.lock"
-        case .howitworks: "cpu"
-        case .tutorial: "checklist"
+        case .guide: "book.closed"
         case .diagnostics: "waveform.path.ecg"
         }
     }

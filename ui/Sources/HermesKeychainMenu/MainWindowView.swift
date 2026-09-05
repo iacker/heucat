@@ -26,8 +26,7 @@ struct MainWindowView: View {
                     case .secrets: SecretsView()
                     case .sessions: SessionsView()
                     case .profiles: SealedProfilesView()
-                    case .howitworks: HowItWorksView()
-                    case .tutorial: TutorialView()
+                    case .guide: TutorialView()
                     case .diagnostics: DiagnosticsView()
                     }
                 }
@@ -92,7 +91,7 @@ struct MainWindowView: View {
 
             if model.status.configuredCount == 0 {
                 Button {
-                    model.selectedSection = .tutorial
+                    model.selectedSection = .guide
                 } label: {
                     Label(L("app.setupGuide"), systemImage: "sparkles")
                         .font(.system(size: 12, weight: .semibold))
@@ -303,7 +302,7 @@ struct OverviewView: View {
                         .padding(.top, 18)
                     HStack(spacing: 11) {
                         Button {
-                            model.selectedSection = model.status.configuredCount == 0 ? .tutorial : .secrets
+                            model.selectedSection = model.status.configuredCount == 0 ? .guide : .secrets
                         } label: {
                             HStack(spacing: 7) {
                                 Image(systemName: model.status.configuredCount == 0 ? "sparkles" : "lock.fill")
@@ -1049,74 +1048,6 @@ struct DiagnosticsView: View {
 }
 
 // MARK: - How it works
-
-struct HowItWorksView: View {
-    @ObservedObject private var loc = Loc.shared
-
-    private struct Stage: Identifiable {
-        let id = UUID()
-        let icon: String
-        let title: String
-        let body: String
-    }
-
-    /// Built at render time so switching language re-reads the tables.
-    private var stages: [Stage] {
-        (1...4).map { i in
-            Stage(icon: ["cpu", "lock.doc", "touchid", "bolt.horizontal"][i - 1],
-                  title: L("how.\(i).title"),
-                  body: L("how.\(i).body"))
-        }
-    }
-
-    var body: some View {
-        Group {
-            if snapshotMode { stack } else { ScrollView { stack } }
-        }
-    }
-
-    private var stack: some View {
-            VStack(alignment: .leading, spacing: 20) {
-                pageHeader(L("how.title"), L("how.subtitle"))
-                ForEach(Array(stages.enumerated()), id: \.element.id) { index, stage in
-                    Plate {
-                        HStack(alignment: .top, spacing: 16) {
-                            ZStack {
-                                Circle().fill(Theme.lapis.opacity(0.08)).frame(width: 46, height: 46)
-                                Image(systemName: stage.icon)
-                                    .font(.system(size: 18, weight: .light))
-                                    .foregroundStyle(Theme.lapis)
-                            }
-                            VStack(alignment: .leading, spacing: 6) {
-                                Eyebrow(text: L("how.step") + " \(index + 1)")
-                                Text(stage.title)
-                                    .font(Theme.serif(17, weight: .semibold))
-                                    .foregroundStyle(Theme.ink)
-                                Text(stage.body)
-                                    .font(Theme.serif(13))
-                                    .foregroundStyle(Theme.inkSoft)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
-                            Spacer(minLength: 0)
-                        }
-                    }
-                }
-                Plate {
-                    VStack(alignment: .leading, spacing: 7) {
-                        Eyebrow(text: L("how.tradeoff.title"), tint: Theme.amber)
-                        Text(L("how.tradeoff.body"))
-                            .font(Theme.serif(13))
-                            .foregroundStyle(Theme.inkSoft)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
-                Ornament(width: 200).frame(maxWidth: .infinity)
-            }
-            .padding(30)
-    }
-}
-
-// MARK: - Shared rows
 
 struct SecretRow: View {
     @EnvironmentObject private var model: AppModel
