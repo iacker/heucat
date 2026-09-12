@@ -11,6 +11,8 @@ struct MainWindowView: View {
     /// Observing Loc makes the whole window redraw the moment the language
     /// changes, which is what makes the picker feel instant.
     @ObservedObject private var loc = Loc.shared
+    /// Shared geometry for the sliding nav selection pill.
+    @Namespace private var navPill
     var autoRefresh = true
 
     var body: some View {
@@ -79,7 +81,7 @@ struct MainWindowView: View {
                 Ornament(width: 92)
                     .padding(.top, 3)
             }
-            .padding(.top, 30)
+            .padding(.top, 46)
             .padding(.bottom, 26)
 
             VStack(spacing: 3) {
@@ -141,9 +143,17 @@ struct MainWindowView: View {
         }
         .frame(width: 214)
         .background(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(Theme.cream)
-                .shadow(color: Theme.marbleShadow.opacity(0.16), radius: 22, x: 4, y: 6)
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .fill(.ultraThinMaterial)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .fill(Theme.card.opacity(0.45))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .strokeBorder(Theme.glassEdge, lineWidth: 1)
+                )
+                .shadow(color: Theme.marbleShadow.opacity(0.45), radius: 26, x: 4, y: 10)
         )
         .padding(.vertical, 12)
         .padding(.leading, 12)
@@ -152,28 +162,38 @@ struct MainWindowView: View {
     private func navItem(_ section: AppSection) -> some View {
         let selected = (model.selectedSection ?? .overview) == section
         return Button {
-            model.selectedSection = section
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                model.selectedSection = section
+            }
         } label: {
             HStack(spacing: 11) {
                 Image(systemName: section.icon)
-                    .font(.system(size: 13))
+                    .font(.system(size: 13, weight: selected ? .semibold : .regular))
                     .frame(width: 17)
                     .foregroundStyle(selected ? Color.white : Theme.inkSoft)
                 Text(section.title)
-                    .font(.system(size: 13, weight: selected ? .semibold : .regular))
+                    .font(.system(size: 13, weight: selected ? .semibold : .regular,
+                                  design: .rounded))
                     .foregroundStyle(selected ? Color.white : Theme.inkSoft)
                 Spacer()
             }
             .padding(.horizontal, 13)
-            .padding(.vertical, 9)
-            .background(
-                RoundedRectangle(cornerRadius: 9, style: .continuous)
-                    .fill(selected
-                          ? AnyShapeStyle(LinearGradient(colors: [Theme.lapis, Theme.lapisSoft],
-                                                         startPoint: .topLeading, endPoint: .bottomTrailing))
-                          : AnyShapeStyle(Color.clear))
-                    .shadow(color: selected ? Theme.lapis.opacity(0.34) : .clear, radius: 7, y: 3)
-            )
+            .padding(.vertical, 10)
+            .background {
+                // matchedGeometryEffect makes the pill slide between rows
+                // instead of cross-fading, which is what makes the nav feel
+                // native rather than like a web menu.
+                if selected {
+                    RoundedRectangle(cornerRadius: 11, style: .continuous)
+                        .fill(Theme.accentGradient)
+                        .shadow(color: Theme.lapis.opacity(0.45), radius: 10, y: 4)
+                        .matchedGeometryEffect(id: "navPill", in: navPill)
+                } else {
+                    RoundedRectangle(cornerRadius: 11, style: .continuous)
+                        .fill(Color.clear)
+                }
+            }
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
@@ -229,7 +249,10 @@ struct MainWindowView: View {
             }
         }
         .padding(.horizontal, 26)
-        .padding(.vertical, 15)
+        // The titlebar is hidden so the canvas runs to the window edge; without
+        // extra top padding this row slides under the traffic lights.
+        .padding(.top, 30)
+        .padding(.bottom, 15)
     }
 
     private var footer: some View {
@@ -774,42 +797,34 @@ struct SealedProfilesView: View {
             // The dashboard, not a description of the engine: how many profiles
             // are sealed, which one this app is driving, and whether chthonios
             // can actually run. The engine's own name belongs in the footer.
+            HStack(spacing: 14) {
+                StatTile(icon: "lock.fill", value: "\(model.sealedCount)",
+                         label: L("profiles.tallySealed"), tint: Theme.verdigris)
+                StatTile(icon: "lock.open.fill", value: "\(model.openCount)",
+                         label: L("profiles.tallyOpen"), tint: Theme.amber)
+                StatTile(icon: "circle.dashed", value: "\(model.unmanagedCount)",
+                         label: L("profiles.tallyUnmanaged"), tint: Theme.inkFaint)
+            }
+
             Plate {
-                VStack(alignment: .leading, spacing: 16) {
-                    HStack(alignment: .top, spacing: 0) {
-                        tally(model.sealedCount, L("profiles.tallySealed"),
-                              "lock.fill", Theme.verdigris)
-                        tallyDivider
-                        tally(model.openCount, L("profiles.tallyOpen"),
-                              "lock.open.fill", Theme.amber)
-                        tallyDivider
-                        tally(model.unmanagedCount, L("profiles.tallyUnmanaged"),
-                              "circle.dashed", Theme.inkFaint)
-                        Spacer(minLength: 12)
-                        Button(L("app.refresh")) { Task { await model.refreshChthonios() } }
-                            .buttonStyle(QuietButtonStyle())
-                    }
-                    Rectangle().fill(Theme.hairline).frame(height: 0.7)
-                    HStack(spacing: 8) {
-                        Image(systemName: "person.crop.circle")
-                            .font(.system(size: 11))
-                            .foregroundStyle(Theme.lapis)
-                        Text(L("profiles.activeIs"))
-                            .font(Theme.serif(12))
-                            .foregroundStyle(Theme.inkSoft)
-                        Text(model.activeProfile)
-                            .font(.system(size: 11, weight: .medium, design: .monospaced))
-                            .foregroundStyle(Theme.ink)
-                        Spacer()
-                        Circle()
-                            .fill(model.chthoniosAvailable ? Theme.verdigris : Theme.amber)
-                            .frame(width: 5, height: 5)
-                        Text(model.chthoniosAvailable ? L("profiles.engineOn")
-                                                      : L("profiles.engineOff"))
-                            .font(.system(size: 11))
-                            .foregroundStyle(model.chthoniosAvailable ? Theme.verdigris
-                                                                      : Theme.amber)
-                    }
+                HStack(spacing: 10) {
+                    Image(systemName: "person.crop.circle.fill")
+                        .font(.system(size: 13))
+                        .foregroundStyle(Theme.lapis)
+                    Text(L("profiles.activeIs"))
+                        .font(Theme.serif(12))
+                        .foregroundStyle(Theme.inkSoft)
+                    Text(model.activeProfile)
+                        .font(Theme.mono(12, weight: .semibold))
+                        .foregroundStyle(Theme.ink)
+                    Spacer()
+                    StatusPill(
+                        text: model.chthoniosAvailable ? L("profiles.engineOn")
+                                                       : L("profiles.engineOff"),
+                        tint: model.chthoniosAvailable ? Theme.verdigris : Theme.amber,
+                        pulses: model.chthoniosAvailable)
+                    Button(L("app.refresh")) { Task { await model.refreshChthonios() } }
+                        .buttonStyle(QuietButtonStyle())
                 }
             }
 
@@ -822,6 +837,35 @@ struct SealedProfilesView: View {
                             }
                         }
                     }
+                }
+            } else {
+                // An empty table is never "nothing to show": chthonios always
+                // lists every profile under the Hermes root. Empty means the
+                // engine failed or was pointed at the wrong home, so print what
+                // it actually returned instead of a silent blank page.
+                TitledPlate(L("profiles.allProfiles")) {
+                    VStack(alignment: .leading, spacing: 9) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.system(size: 11))
+                                .foregroundStyle(Theme.amber)
+                            Text(L("profiles.emptyTitle"))
+                                .font(Theme.serif(13))
+                                .foregroundStyle(Theme.ink)
+                        }
+                        Text(L("profiles.emptyHint"))
+                            .font(.system(size: 11))
+                            .foregroundStyle(Theme.inkSoft)
+                            .fixedSize(horizontal: false, vertical: true)
+                        if !model.chthoniosDetail.isEmpty {
+                            Text(model.chthoniosDetail)
+                                .font(.system(size: 10, design: .monospaced))
+                                .foregroundStyle(Theme.inkFaint)
+                                .textSelection(.enabled)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
 
@@ -843,32 +887,6 @@ struct SealedProfilesView: View {
         .padding(30)
     }
 
-    private var tallyDivider: some View {
-        Rectangle().fill(Theme.hairline).frame(width: 0.7, height: 34)
-            .padding(.horizontal, 18)
-    }
-
-    /// One number and what it counts. Zero is shown greyed rather than hidden:
-    /// "0 sealed" is the most important thing this page can say.
-    private func tally(_ count: Int, _ label: String,
-                       _ icon: String, _ tint: Color) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text("\(count)")
-                .font(Theme.serif(27, weight: .semibold))
-                .foregroundStyle(count == 0 ? Theme.inkFaint : tint)
-            HStack(spacing: 4) {
-                Image(systemName: icon)
-                    .font(.system(size: 9))
-                    .foregroundStyle(count == 0 ? Theme.inkFaint : tint)
-                Text(label)
-                    .font(.system(size: 10))
-                    .foregroundStyle(Theme.inkSoft)
-            }
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(count) \(label)")
-    }
-
     private func boundaryRow(_ icon: String, _ text: String) -> some View {
         HStack(spacing: 11) {
             Image(systemName: icon)
@@ -888,6 +906,7 @@ struct ProfileRow: View {
     @ObservedObject private var loc = Loc.shared
     let profile: ProfileStatus
     let onSecretNeeded: (ProfileSecretSheet.Action) -> Void
+    @State private var hovering = false
 
     private var tint: Color {
         switch profile.state {
@@ -912,85 +931,101 @@ struct ProfileRow: View {
     }
 
     var body: some View {
-        Plate(padding: 14) {
-            HStack(spacing: 13) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 9, style: .continuous)
-                        .fill(tint.opacity(0.08))
-                    Image(systemName: icon)
-                        .font(.system(size: 14))
-                        .foregroundStyle(tint)
-                }
-                .frame(width: 38, height: 38)
-
-                VStack(alignment: .leading, spacing: 3) {
-                    HStack(spacing: 6) {
-                        Text(profile.name)
-                            .font(.system(size: 12, weight: .medium, design: .monospaced))
-                            .foregroundStyle(Theme.ink)
-                        if profile.name == model.activeProfile {
-                            Text(L("profiles.active"))
-                                .font(.system(size: 9, weight: .semibold))
-                                .foregroundStyle(Theme.lapis)
-                                .padding(.horizontal, 5).padding(.vertical, 2)
-                                .background(Theme.lapis.opacity(0.1), in: Capsule())
-                        }
-                        if profile.needsHardwareKey {
-                            Image(systemName: "key.horizontal.fill")
-                                .font(.system(size: 9))
-                                .foregroundStyle(Theme.amber)
-                                .help(L("profiles.yubikeyBacked"))
-                        }
-                    }
-                    HStack(spacing: 5) {
-                        Text(stateLabel)
-                            .font(.system(size: 10))
-                            .foregroundStyle(tint)
-                        if !profile.backend.isEmpty {
-                            Text("· \(profile.backend)")
-                                .font(.system(size: 10))
-                                .foregroundStyle(Theme.inkFaint)
-                        }
-                        if !profile.sealedAt.isEmpty {
-                            Text("· \(profile.sealedAt.prefix(10))")
-                                .font(.system(size: 10))
-                                .foregroundStyle(Theme.inkFaint)
-                        }
-                    }
-                }
-                Spacer(minLength: 12)
-
-                HStack(spacing: 7) {
-                    switch profile.state {
-                    case .unmanaged:
-                        Button(L("profiles.seal")) { onSecretNeeded(.seal) }
-                            .buttonStyle(QuietButtonStyle())
-                            .accessibilityLabel("\(L("profiles.seal")) \(profile.name)")
-                    case .sealed:
-                        Button(L("profiles.unseal")) { onSecretNeeded(.unseal) }
-                            .buttonStyle(QuietButtonStyle())
-                            .accessibilityLabel("\(L("profiles.unseal")) \(profile.name)")
-                        Button(L("profiles.verify")) {
-                            Task { await model.verifyProfile(profile) }
-                        }
-                        .buttonStyle(QuietButtonStyle())
-                        .accessibilityLabel("\(L("profiles.verify")) \(profile.name)")
-                    case .open:
-                        Button(L("profiles.lock")) {
-                            Task { await model.lockProfile(profile) }
-                        }
-                        .buttonStyle(QuietButtonStyle())
-                        .accessibilityLabel("\(L("profiles.lock")) \(profile.name)")
-                        Button(L("profiles.verify")) {
-                            Task { await model.verifyProfile(profile) }
-                        }
-                        .buttonStyle(QuietButtonStyle())
-                        .accessibilityLabel("\(L("profiles.verify")) \(profile.name)")
-                    }
-                }
-                .disabled(model.isBusy)
+        HStack(spacing: 14) {
+            // The state icon sits on its own coloured glow, so a sealed row is
+            // legible from across the room without reading the label.
+            ZStack {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(tint.opacity(0.16))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .strokeBorder(tint.opacity(0.34), lineWidth: 1)
+                    )
+                Image(systemName: icon)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(tint)
             }
+            .frame(width: 42, height: 42)
+            .shadow(color: tint.opacity(0.35), radius: 9, y: 3)
+
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(spacing: 7) {
+                    Text(profile.name)
+                        .font(Theme.mono(13, weight: .semibold))
+                        .foregroundStyle(Theme.ink)
+                    if profile.name == model.activeProfile {
+                        Text(L("profiles.active"))
+                            .font(.system(size: 9, weight: .bold, design: .rounded))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 7).padding(.vertical, 2.5)
+                            .background(Theme.accentGradient, in: Capsule())
+                            .shadow(color: Theme.lapis.opacity(0.5), radius: 6, y: 2)
+                    }
+                    if profile.needsHardwareKey {
+                        Image(systemName: "key.horizontal.fill")
+                            .font(.system(size: 9))
+                            .foregroundStyle(Theme.amber)
+                            .help(L("profiles.yubikeyBacked"))
+                    }
+                }
+                HStack(spacing: 7) {
+                    StatusPill(text: stateLabel, tint: tint,
+                               pulses: profile.state == .open)
+                    if !profile.backend.isEmpty {
+                        Text(profile.backend)
+                            .font(Theme.mono(10))
+                            .foregroundStyle(Theme.inkFaint)
+                    }
+                    if !profile.sealedAt.isEmpty {
+                        Text(profile.sealedAt.prefix(10))
+                            .font(Theme.mono(10))
+                            .foregroundStyle(Theme.inkFaint)
+                    }
+                }
+            }
+            Spacer(minLength: 12)
+
+            HStack(spacing: 7) {
+                switch profile.state {
+                case .unmanaged:
+                    Button(L("profiles.seal")) { onSecretNeeded(.seal) }
+                        .buttonStyle(QuietButtonStyle())
+                        .accessibilityLabel("\(L("profiles.seal")) \(profile.name)")
+                case .sealed:
+                    Button(L("profiles.unseal")) { onSecretNeeded(.unseal) }
+                        .buttonStyle(LapisButtonStyle())
+                        .accessibilityLabel("\(L("profiles.unseal")) \(profile.name)")
+                    Button(L("profiles.verify")) {
+                        Task { await model.verifyProfile(profile) }
+                    }
+                    .buttonStyle(QuietButtonStyle())
+                    .accessibilityLabel("\(L("profiles.verify")) \(profile.name)")
+                case .open:
+                    Button(L("profiles.lock")) {
+                        Task { await model.lockProfile(profile) }
+                    }
+                    .buttonStyle(LapisButtonStyle())
+                    .accessibilityLabel("\(L("profiles.lock")) \(profile.name)")
+                    Button(L("profiles.verify")) {
+                        Task { await model.verifyProfile(profile) }
+                    }
+                    .buttonStyle(QuietButtonStyle())
+                    .accessibilityLabel("\(L("profiles.verify")) \(profile.name)")
+                }
+            }
+            .disabled(model.isBusy)
         }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.white.opacity(hovering ? 0.07 : 0.035))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(hovering ? tint.opacity(0.30) : Theme.hairline, lineWidth: 1)
+        )
+        .animation(.easeOut(duration: 0.16), value: hovering)
+        .onHover { hovering = $0 }
     }
 }
 
@@ -1013,6 +1048,11 @@ struct DiagnosticsView: View {
                     diagRow(L("diag.enclaveKey"), model.status.enclaveKeyPresent ? L("diag.present") : L("diag.missing"))
                     diagDivider
                     diagRow(L("diag.lastStatus"), model.message)
+                    diagDivider
+                    diagRow(L("diag.chthonios"), model.chthoniosBinary)
+                    diagDivider
+                    diagRow(L("diag.chthoniosOutput"),
+                            model.chthoniosDetail.isEmpty ? "—" : model.chthoniosDetail)
                 }
             }
             HStack(spacing: 11) {

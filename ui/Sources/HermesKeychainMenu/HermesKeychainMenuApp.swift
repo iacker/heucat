@@ -34,10 +34,18 @@ struct HermesKeychainMenuApp: App {
         Window("HEUCAT Keychain", id: "main") {
             MainWindowView()
                 .environmentObject(model)
+                // The theme is a dark canvas by design, so the window must not
+                // follow the system appearance: in Light mode macOS would tint
+                // the materials and every glass pane would turn milky white.
+                .preferredColorScheme(.dark)
                 .task { await exportDiagnosticCaptureIfRequested() }
         }
         .defaultSize(width: 1240, height: 780)
         .windowResizability(.contentMinSize)
+        // A unified titlebar lets the canvas run under the traffic lights, which
+        // is what makes the window read as one surface rather than a web page
+        // inside a grey frame.
+        .windowStyle(.hiddenTitleBar)
         .commands {
             CommandGroup(after: .newItem) {
                 Button("Add Secret…") { model.showingAddSecret = true }
@@ -66,7 +74,15 @@ struct HermesKeychainMenuApp: App {
            let match = AppSection.allCases.first(where: { $0.rawValue == section }) {
             model.selectedSection = match
         }
-        try? await Task.sleep(for: .seconds(5))
+        // Wait for the real data instead of a fixed delay: `hermes keychain
+        // status` can take seconds, and rendering mid-refresh produced
+        // snapshots showing an empty engine that the live app never shows.
+        let deadline = Date().addingTimeInterval(40)
+        while model.isBusy || Date() < deadline {
+            try? await Task.sleep(for: .milliseconds(250))
+            if !model.isBusy && model.lastUpdated != nil { break }
+        }
+        try? await Task.sleep(for: .seconds(1))
         let diagnostic = "busy=\(model.isBusy) message=\(model.message) configured=\(model.status.configuredCount)"
         try? diagnostic.write(toFile: path + ".txt", atomically: true, encoding: .utf8)
         // Render the real window, not a copy: a snapshot that can drift from the
@@ -74,6 +90,7 @@ struct HermesKeychainMenuApp: App {
         let renderer = ImageRenderer(
             content: MainWindowView(autoRefresh: false)
                 .environmentObject(model)
+                .preferredColorScheme(.dark)
                 .frame(width: 1240, height: 760)
         )
         renderer.scale = 1.5
