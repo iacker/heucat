@@ -245,6 +245,8 @@ final class Loc: ObservableObject {
         "profiles.reuseKeyFrom": "Your YubiKey is already enrolled for %@ — the same key can open this profile.",
         "profiles.useSameKey": "Use the same key",
         "profiles.notInstalled": "Chthonios is not installed",
+        "profiles.emptyTitle": "No profile returned",
+        "profiles.emptyHint": "Chthonios lists every profile under the Hermes root, so an empty table means it failed or was pointed at the wrong home. Its raw answer is below.",
         "profiles.tallySealed": "sealed",
         "profiles.tallyOpen": "open",
         "profiles.tallyUnmanaged": "unmanaged",
@@ -361,6 +363,8 @@ final class Loc: ObservableObject {
         "diag.present": "Present",
         "diag.missing": "Missing",
         "diag.lastStatus": "Last status",
+        "diag.chthonios": "Chthonios binary",
+        "diag.chthoniosOutput": "Chthonios output",
         "secrets.removeWarning": " will be removed from the Keychain, encrypted storage and any active session. This cannot be undone.",
     ]
 
@@ -565,6 +569,8 @@ final class Loc: ObservableObject {
         "profiles.reuseKeyFrom": "Votre YubiKey est déjà enrôlée pour %@ — la même clé peut ouvrir ce profil.",
         "profiles.useSameKey": "Utiliser la même clé",
         "profiles.notInstalled": "Chthonios n'est pas installé",
+        "profiles.emptyTitle": "Aucun profil renvoyé",
+        "profiles.emptyHint": "Chthonios liste tous les profils sous la racine Hermes, donc une table vide signifie qu'il a échoué ou qu'on lui a donné la mauvaise racine. Sa réponse brute est ci-dessous.",
         "profiles.tallySealed": "scellés",
         "profiles.tallyOpen": "ouverts",
         "profiles.tallyUnmanaged": "non gérés",
@@ -681,6 +687,8 @@ final class Loc: ObservableObject {
         "diag.present": "Présente",
         "diag.missing": "Absente",
         "diag.lastStatus": "Dernier état",
+        "diag.chthonios": "Binaire Chthonios",
+        "diag.chthoniosOutput": "Sortie Chthonios",
         "secrets.removeWarning": " sera supprimé du trousseau, du stockage chiffré et de toute session active. Cette action est irréversible.",
     ]
 }

@@ -73,6 +73,10 @@ final class AppModel: ObservableObject {
     @Published var pendingDeletion: SecretStatus?
     @Published var chthoniosSummary = "Checking…"
     @Published var chthoniosAvailable = false
+    /// Raw `chthonios status` output plus the home it ran against. An empty
+    /// profile table used to look identical to a crashed engine; Diagnostics
+    /// now shows exactly what the binary printed.
+    @Published var chthoniosDetail = ""
     @Published var profiles: [ProfileStatus] = []
     @Published var pingResults: [String: String] = [:]   // env name -> "ok" | "dead" | "unknown" | "…"
     @Published var isTestingAll = false
@@ -167,9 +171,11 @@ final class AppModel: ObservableObject {
 
     func refreshChthonios() async {
         let path = NSString(string: chthoniosBinary).expandingTildeInPath
+        let home = NSString(string: chthoniosHome(from: hermesHome)).expandingTildeInPath
         guard FileManager.default.isExecutableFile(atPath: path) else {
             chthoniosAvailable = false
             chthoniosSummary = L("profiles.notInstalled")
+            chthoniosDetail = "\(path): not executable"
             profiles = []
             return
         }
@@ -178,6 +184,8 @@ final class AppModel: ObservableObject {
             let ok = result.exitCode == 0
             chthoniosAvailable = ok
             chthoniosSummary = ChthoniosStatus.parse(result.output, ok: ok).label
+            chthoniosDetail = "$ \(path) status  (HERMES_HOME=\(home))\n"
+                + "exit \(result.exitCode)\n" + result.output
             // Order by what the user acts on: the profile this app drives, then
             // the ones chthonios manages, then the untouched rest. Alphabetical
             // order buries the active profile in the middle of the list.
@@ -192,6 +200,8 @@ final class AppModel: ObservableObject {
         } catch {
             chthoniosAvailable = false
             chthoniosSummary = error.localizedDescription
+            chthoniosDetail = "$ \(path) status  (HERMES_HOME=\(home))\n"
+                + error.localizedDescription
             profiles = []
         }
     }

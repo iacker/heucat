@@ -8,6 +8,23 @@ CONTENTS="$APP/Contents"
 MACOS="$CONTENTS/MacOS"
 
 cd "$UI"
+
+# SwiftUI's macros (@State, @Environment...) need the macro plugins that ship
+# with the SDK. Command Line Tools 27 installs a MacOSX27 SDK without them, so
+# a default build dies on "SwiftUIMacros.StateMacro plugin not found". Pick the
+# newest SDK that actually carries SwiftUI macros instead of pinning a version.
+if [ -z "${SDKROOT:-}" ]; then
+  for sdk in "$(xcrun --show-sdk-path 2>/dev/null || true)" \
+             /Library/Developer/CommandLineTools/SDKs/MacOSX*.sdk; do
+    [ -d "$sdk" ] || continue
+    if printf 'import SwiftUI\nstruct P: View { @State var v = 0\n  var body: some View { EmptyView() } }\n' \
+        | swiftc -sdk "$sdk" -typecheck - >/dev/null 2>&1; then
+      SDKROOT="$sdk"; break
+    fi
+  done
+fi
+[ -n "${SDKROOT:-}" ] && export SDKROOT && echo "SDKROOT=$SDKROOT"
+
 swift build -c release
 
 rm -rf "$APP"
