@@ -44,10 +44,7 @@ fi
 
 # 4. optional menu-bar app
 if [ "${1:-}" = "--app" ]; then
-  ui/scripts/build-app.sh >/dev/null
-  rm -rf "/Applications/HEUCAT Keychain.app"
-  ditto "ui/dist/HEUCAT Keychain.app" "/Applications/HEUCAT Keychain.app"
-  echo "app     : /Applications/HEUCAT Keychain.app"
+  echo "app     : $(ui/scripts/build-app.sh --install | tail -1)"
 fi
 
 echo

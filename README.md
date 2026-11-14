@@ -30,14 +30,10 @@ git clone https://github.com/iacker/heucat && cd heucat
 hermes keychain store OPENROUTER_API_KEY
 ```
 
-Add `--app` to `install.sh` for the menu-bar app, or grab the
-[prebuilt release](https://github.com/iacker/heucat/releases/latest). It is ad-hoc signed, so
-macOS quarantines it once:
-
-```bash
-unzip HEUCAT-Keychain.zip -d /Applications
-xattr -dr com.apple.quarantine "/Applications/HEUCAT Keychain.app"
-```
+Add `--app` to `install.sh` for the menu-bar app (`HEUCAT.app`, under 1 MB, ~45 MB RAM): keys,
+[Chthonios](https://github.com/iacker/hermes-chthonios) profile seals, and encrypted vaults for any
+folder (an Obsidian vault, a whole profile) or a Hindsight memory bank. It is ad-hoc signed, so a
+downloaded copy needs `xattr -dr com.apple.quarantine /Applications/HEUCAT.app` once.
 
 ## Two modes
 
@@ -63,7 +59,8 @@ hermes keychain export [--dotenv]         emit KEY=value lines for any harness
 ```
 
 Values reach the CLI over stdin, never `argv`, so nothing lands in `ps` or shell history.
-`export` bridges to non-Hermes tools: `eval "$(hermes keychain export)"`.
+`export` bridges to non-Hermes tools: `eval "$(hermes keychain export)"`. `./heucat.py <cmd>` is the
+same CLI without booting Hermes (about 0.4 s instead of 5 s); the app uses it.
 
 ## Security model
 
@@ -86,7 +83,7 @@ config reference, headless setup, and the desktop app are on the
 ```bash
 HERMES_AGENT_SRC=~/.hermes/hermes-agent PYTHONPATH=~/.hermes/hermes-agent \
   uv run --with pytest --with pyyaml --with rich python -m pytest tests/ -v
-cd ui && ./scripts/test.sh   # Swift status parser + FR/EN and exit-code drift guards
+ui/scripts/build-app.sh      # the app builds with plain swiftc, no SwiftPM cache
 ```
 
 56 tests, mostly hermetic. `tests/test_long_values.py` touches a scratch Keychain item because the

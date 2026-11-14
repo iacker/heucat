@@ -1,31 +1,21 @@
-# Hermes Keychain menu bar app
+# HEUCAT.app
 
-Native SwiftUI companion for the Apple Keychain + Secure Enclave plugin.
+Menu-bar app, French UI, under 1 MB on disk. No Dock icon, no main window: one popover.
 
-- Menu-bar lock state
-- Per-secret mode and status
-- Unlock through the native LocalAuthentication flow
-- Lock all TTL sessions immediately
-- Refresh and configurable Hermes binary/profile paths
+| Tab | What it does | Backed by |
+|---|---|---|
+| Clés | keychain secrets per Hermes profile: status, Touch ID unlock, lock, add, delete | `heucat.py` (plugin CLI, no Hermes boot) |
+| Profils | seal / open / re-lock a profile's `.env` (passphrase or YubiKey) | `chthonios seal/unseal/lock` |
+| Coffres | encrypt any folder or file (Obsidian vault, whole profile) or a Hindsight bank into `~/Coffres`; open or restore | `chthonios pack/unpack`, Hindsight transfer API |
 
-The app does not implement secret storage. It delegates only
-`hermes keychain status|unlock|lock` to the plugin CLI, keeping one security
-implementation and avoiding secret values in process arguments.
-
-## Build and run
+Secrets, passphrases and PINs only ever travel on stdin. The app never deletes an original.
+A Hindsight bank is exported, sealed (the plaintext zip is shredded) and restores into a *new*
+bank, so the live one is never touched. YubiKey vaults open from a terminal: the app copies the command.
 
 ```bash
-cd ui
-./scripts/test.sh
-./scripts/build-app.sh
-open "dist/HEUCAT Keychain.app"
+ui/scripts/build-app.sh             # ui/dist/HEUCAT.app
+ui/scripts/build-app.sh --install   # /Applications/HEUCAT.app, nothing left in dist
+HEUCAT_SNAPSHOT=out.png HEUCAT_TAB=Coffres /Applications/HEUCAT.app/Contents/MacOS/HEUCAT   # offscreen render
 ```
 
-Paths are detected on first launch (`hermes` on the usual install paths,
-`HERMES_HOME` or `~/.hermes`) and can be changed in Settings:
-
-- Hermes CLI: `~/.local/bin/hermes`
-- Hermes home: `~/.hermes` (or `~/.hermes/profiles/<name>` for a profile)
-
-The app is ad-hoc signed for local use. A distributable build would need an
-Apple Developer ID signature and notarization.
+Ad-hoc signed for local use; a distributable build needs a Developer ID and notarization.

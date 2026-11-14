@@ -184,16 +184,16 @@
 
 <section id="release">
   <div class="wrap">
-    <div class="sec-head"><div class="eyebrow">Version 0.3.0</div><h2>A clearer start. Safer updates.</h2></div>
+    <div class="sec-head"><div class="eyebrow">Version 1.0</div><h2>Lighter app. Encrypted vaults.</h2></div>
     <div class="plate">
-      <p>Start with the in-app <strong>Tutorial</strong>. It explains macOS Keychain, Secure Enclave, Touch ID and temporary sessions before teaching every screen through clickable cards. The final setup checklist uses current CLI status, not saved checkboxes.</p>
+      <p>The app is now a single menu-bar popover under 1&nbsp;MB that refreshes in under half a second, because it no longer boots Hermes to read a status. A new <strong>Coffres</strong> tab encrypts any folder or a Hindsight memory bank.</p>
       <ul>
         <li><strong>Sessions stay in Keychain.</strong> Long unlocked values are split across Keychain items, not saved in plaintext files.</li>
         <li><strong>Updates preserve protection.</strong> Editing a value keeps its mode, service and account. Moving a plain secret to the Secure Enclave is a separate migration.</li>
         <li><strong>Errors stay visible.</strong> Commands have a timeout. A rejected provider request is not reported as a working key.</li>
       </ul>
       <p class="muted">The desktop app requires macOS 14 or later. Secure Enclave mode requires compatible Apple hardware. This is an ad-hoc signed community build, not a notarized Apple release. Unlocking still exposes session values to processes running as you until the TTL ends. Locking does not erase credentials already loaded by a running agent.</p>
-      <a class="btn primary" href="https://github.com/iacker/heucat/releases/tag/v0.3.0">Download v0.3.0</a>
+      <a class="btn primary" href="https://github.com/iacker/heucat">Build from source</a>
     </div>
   </div>
 </section>
@@ -339,30 +339,16 @@
       <h2>The whole thing, in a window</h2>
     </div>
     <div class="plate">
-      <p>An optional SwiftUI app ships in <code>ui/</code>. It shells out to the same CLI and pipes secret
-      values over stdin, so nothing sensitive ever lands in process arguments, and it holds
-      <strong>no security logic of its own</strong>. One code path to audit, not two.</p>
-      <p>It also drives <a href="https://github.com/iacker/hermes-chthonios">Chthonios</a> end to end:
-      seal a profile behind a passphrase or a YubiKey, unseal it, lock it, verify it. The page opens on the
-      numbers: how many profiles are sealed, open or unmanaged, and which one the app is driving.</p>
+      <p>An optional menu-bar app ships in <code>ui/</code>: one popover, under 1&nbsp;MB, no Dock icon.
+      It shells out to the same CLI (without booting Hermes) and pipes every secret, passphrase and PIN over
+      stdin, so nothing sensitive lands in process arguments, and it holds <strong>no security logic of its own</strong>.</p>
       <div class="flow">
-        <div class="step"><div class="k">seal</div><div class="d">Passphrase, or your YubiKey. No touch needed to seal.</div></div>
-        <div class="step"><div class="k">unseal</div><div class="d">PIN and a touch, asked for in the window.</div></div>
-        <div class="step"><div class="k">lock</div><div class="d">Shreds the plaintext, keeps the ciphertext.</div></div>
+        <div class="step"><div class="k">Clés</div><div class="d">Keychain secrets per profile: unlock with Touch ID, lock, add, delete.</div></div>
+        <div class="step"><div class="k">Profils</div><div class="d"><a href="https://github.com/iacker/hermes-chthonios">Chthonios</a> seals: passphrase or YubiKey, open, re-lock.</div></div>
+        <div class="step"><div class="k">Coffres</div><div class="d">Encrypt any folder (an Obsidian vault, a whole profile) or a Hindsight memory bank.</div></div>
       </div>
-      <p class="note">One YubiKey covers as many profiles as you like: the credential lives on the token, so
-      the app offers to bind the next profile to the same key in a click. Enrolling the first key stays a
-      terminal ceremony, because a mistyped PIN spends one of the token's eight retries.</p>
-      <div style="margin:20px 0 6px">
-        <img src="assets/overview-v03.png" alt="HEUCAT overview: stat tiles for secrets, enclave, readable and vault health, a key crest, agent state, enclave sessions and a vault health ring." style="width:100%;border-radius:10px;border:.7px solid var(--hairline)">
-      </div>
-      <p class="muted">The overview opens on the numbers. A single Guide page in the sidebar teaches the macOS security model, walks every screen, then checks your setup live.</p>
-      <div style="margin:20px 0 6px">
-        <img src="assets/sealed-profiles.png" alt="The Sealed Profiles page: counters for sealed, open and unmanaged profiles, the profile the app is driving, and one row per profile with the actions its state allows." style="width:100%;border-radius:10px;border:.7px solid var(--hairline)">
-      </div>
-      <p>The interface is French and English, switchable live. Failures are read from the CLI's exit codes
-      rather than its message text, so a wrong passphrase stays distinguishable from a missing profile in
-      either language.</p>
+      <p class="note">The app never deletes an original. A Hindsight bank is exported, sealed, and restores into a
+      new bank, so the live one is never touched. YubiKey vaults open from a terminal, on purpose.</p>
     </div>
   </div>
 </section>
@@ -372,14 +358,14 @@
     <div class="sec-head">
       <div class="eyebrow">First run</div>
       <h2>Learn first, then configure safely</h2>
-      <p class="muted">Open the app's Tutorial page. Read the four security concepts, explore the interface cards, then complete the six live checks.</p>
+      <p class="muted">Six steps, all from the menu-bar popover.</p>
     </div>
     <div class="grid two">
       <div class="plate">
         <h3>1 · Connect Hermes</h3>
-        <p>Click <strong>Check now</strong>. If it stays incomplete, verify the Hermes home, executable, plugin, and helper paths in Settings.</p>
+        <p>Run <code>./install.sh --app</code>. It links the plugin into Hermes and installs <code>/Applications/HEUCAT.app</code>.</p>
         <h3>2 · Build the helper</h3>
-        <p><code>install.sh</code> builds the Secure Enclave helper. The app can also build it on the first enclave secret. Diagnostics shows the exact path.</p>
+        <p><code>install.sh</code> builds the Secure Enclave helper. The CLI can also build it on the first enclave secret.</p>
         <h3>3 · Add a plain secret</h3>
         <p>Choose Apple Keychain for credentials needed by a gateway, daemon, or cron job without Touch ID. The value travels over stdin and is never displayed again.</p>
       </div>
@@ -389,10 +375,10 @@
         <h3>5 · Unlock once</h3>
         <p>Click Unlock. One macOS authentication opens every enclave secret until the session TTL expires. Hermes startup remains non-interactive.</p>
         <h3>6 · Lock with the screen</h3>
-        <p>Enable screen-lock handling to clear enclave sessions when macOS locks. Authenticate again when you return.</p>
+        <p>On by default: enclave sessions close when macOS locks the screen. Authenticate again when you return.</p>
       </div>
     </div>
-    <p class="note">No real value belongs in a command argument. The CLI prompts in protected input and the app pipes values over stdin. Diagnostics prints paths and states, never secret values.</p>
+    <p class="note">No real value belongs in a command argument. The CLI prompts in protected input and the app pipes values over stdin. Status shows names and states, never secret values.</p>
   </div>
 </section>
 

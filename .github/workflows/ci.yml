@@ -13,8 +13,5 @@ jobs:
         run: PYTHONPATH=$PWD/../hermes-agent HERMES_AGENT_SRC=$PWD/../hermes-agent uv run --with pytest --with pyyaml --with rich python -m pytest tests -q
       - name: helper builds
         run: bash helper/build.sh
-      - name: app builds and self-tests
-        run: |
-          cd ui
-          ./scripts/test.sh
-          swift build -c release
+      - name: app builds
+        run: bash ui/scripts/build-app.sh
